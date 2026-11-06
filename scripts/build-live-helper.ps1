@@ -19,7 +19,7 @@ function Publish-Helper {
     [string]$Output
   )
 
-  $framework = if ($Runtime -eq 'win-x64') { 'net6.0-windows' } else { 'net6.0' }
+  $framework = if ($Runtime -eq 'win-x64') { 'net8.0-windows' } else { 'net8.0' }
   dotnet publish ./LiveRouteOCR/LiveRouteOCR.csproj -c Release -r $Runtime -f $framework --self-contained true -p:PublishSingleFile=false -o $Output
 }
 
