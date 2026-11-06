@@ -13,12 +13,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "npm"
 
       - name: Inject telemetry configuration
@@ -37,13 +37,13 @@ jobs:
         run: npm ci
 
       - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: "6.0.x"
+          dotnet-version: "8.0.x"
 
       - name: Publish LiveRouteOCR
         shell: pwsh
-        run: dotnet publish .\LiveRouteOCR\LiveRouteOCR.csproj -c Release -r win-x64 -f net6.0-windows -p:PublishSingleFile=false -p:SelfContained=true -o LiveRouteOCR/publish
+        run: dotnet publish .\LiveRouteOCR\LiveRouteOCR.csproj -c Release -r win-x64 -f net8.0-windows -p:PublishSingleFile=false -p:SelfContained=true -o LiveRouteOCR/publish
 
       - name: Zip LiveRouteOCR for packaging
         shell: pwsh
@@ -102,12 +102,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "npm"
 
       - name: Inject telemetry configuration
@@ -124,12 +124,10 @@ jobs:
         run: npm ci
 
       - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: "6.0.x"
+          dotnet-version: "8.0.x"
 
-      - name: Ensure app-builder is executable
-        run: chmod +x node_modules/app-builder-bin/linux/x64/app-builder
 
       - name: Build app (renderer + package)
         run: npm run pack:linux
@@ -155,22 +153,22 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   build-mac:
-    runs-on: macos-13
+    runs-on: macos-latest
     permissions:
       contents: write
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
 
       - name: Inject telemetry configuration
         run: node scripts/write-telemetry-config.js
@@ -182,8 +180,6 @@ jobs:
           POKEMMO_TOOL_TELEMETRY_STATS_KEY: ${{ secrets.POKEMMO_TOOL_TELEMETRY_STATS_KEY }}
           POKEMMO_TOOL_TELEMETRY_STATS_TOKEN: ${{ secrets.POKEMMO_TOOL_TELEMETRY_STATS_TOKEN }}
 
-      - name: Ensure app-builder is executable
-        run: chmod +x node_modules/app-builder-bin/mac/app-builder_arm64
 
       - name: Build app (renderer + package)
         run: npm run pack:mac
