@@ -20,7 +20,10 @@ function Publish-Helper {
   )
 
   $framework = if ($Runtime -eq 'win-x64') { 'net8.0-windows' } else { 'net8.0' }
+  # Publish skips runtime files whose existing copies look newer, so a stale runtime left in the output folder would survive.
+  if (Test-Path $Output) { Remove-Item -Recurse -Force $Output }
   dotnet publish ./LiveRouteOCR/LiveRouteOCR.csproj -c Release -r $Runtime -f $framework --self-contained true -p:PublishSingleFile=false -o $Output
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
 function Ensure-LinuxNativeLibraries {
@@ -58,31 +61,31 @@ function Ensure-LinuxNativeLibraries {
 if ($Dev) {
   Write-Host "Dev mode detected: publishing Windows helper only."
   Publish-Helper -Runtime 'win-x64' -Output $winOut
-  Copy-Item -Force (Join-Path $winOut 'LiveRouteOCR.exe') (Join-Path $helperProject 'LiveRouteOCR.exe')
   return
 }
 
 Publish-Helper -Runtime 'win-x64' -Output $winOut
 Publish-Helper -Runtime 'linux-x64' -Output $linuxOut
 
-Copy-Item -Force (Join-Path $winOut 'LiveRouteOCR.exe') (Join-Path $helperProject 'LiveRouteOCR.exe')
-
 $linuxNative = Join-Path $linuxOut 'native'
 Ensure-LinuxNativeLibraries -Destination $linuxNative
 
-$tessSourceCandidates = @(
+$tessSourceCandidates = @(@(
   (Join-Path $linuxOut 'tessdata/eng.traineddata')
   (Join-Path $winOut 'tessdata/eng.traineddata')
   (Join-Path $resourcesRoot 'tessdata/eng.traineddata')
-) | Where-Object { Test-Path $_ }
-if ($tessSourceCandidates.Count -gt 0) {
-  $linuxTess = Join-Path $linuxOut 'tessdata'
+) | Where-Object { Test-Path $_ })
+$linuxTess = Join-Path $linuxOut 'tessdata'
+$linuxTessFile = Join-Path $linuxTess 'eng.traineddata'
+if ($tessSourceCandidates.Count -gt 0 -and $tessSourceCandidates[0] -ne $linuxTessFile) {
   New-Item -ItemType Directory -Force -Path $linuxTess | Out-Null
-  Copy-Item -Force $tessSourceCandidates[0] (Join-Path $linuxTess 'eng.traineddata')
+  Copy-Item -Force $tessSourceCandidates[0] $linuxTessFile
 }
 
-New-Item -ItemType Directory -Force -Path $winResources | Out-Null
-New-Item -ItemType Directory -Force -Path $linuxResources | Out-Null
+foreach ($dir in $winResources, $linuxResources) {
+  if (Test-Path $dir) { Remove-Item -Recurse -Force $dir }
+  New-Item -ItemType Directory -Force -Path $dir | Out-Null
+}
 Copy-Item -Recurse -Force (Join-Path $winOut '*') $winResources
 Copy-Item -Recurse -Force (Join-Path $linuxOut '*') $linuxResources
 
