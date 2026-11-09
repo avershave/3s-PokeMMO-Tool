@@ -13,13 +13,35 @@ android {
         applicationId = "com.pokemmo.tool.overlay"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = System.getenv("ANDROID_VERSION_CODE")?.toIntOrNull() ?: 1
+        versionName = System.getenv("ANDROID_VERSION_NAME") ?: "0.1.0-dev"
+    }
+
+    // Release signing comes from env (set by CI). Without it, release stays unsigned.
+    val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+    val keystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+    val keyAliasEnv = System.getenv("ANDROID_KEY_ALIAS")
+    val keyPasswordEnv = System.getenv("ANDROID_KEY_PASSWORD")
+    val hasSigning = !keystorePath.isNullOrBlank() && !keystorePassword.isNullOrBlank() &&
+        !keyAliasEnv.isNullOrBlank() && !keyPasswordEnv.isNullOrBlank()
+
+    signingConfigs {
+        if (hasSigning) {
+            create("release") {
+                storeFile = file(keystorePath!!)
+                storePassword = keystorePassword
+                keyAlias = keyAliasEnv
+                keyPassword = keyPasswordEnv
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (hasSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 

@@ -28,6 +28,28 @@ It is designed for **Generations 1–5 only**, matching PokéMMO’s supported r
 
 > ⚠️ Windows may show a security prompt for unsigned executables. This is normal and safe to continue.
 
+---
+
+## 📱 Android overlay
+
+A phone companion that shows tags for the Pokémon you are battling as an overlay on top of PokéMMO.
+
+**Install**
+1. Download `3s-PokeMMO-Overlay-<version>.apk` from the [Releases](https://github.com/avershave/3s-PokeMMO-Tool/releases) page.
+2. Allow installing from unknown sources when Android asks, then open the APK.
+
+**Permissions**
+- Display over other apps (draws the overlay)
+- Notifications (keeps the overlay service running)
+- Screen capture (choose **PokéMMO** when asked)
+
+**Privacy:** Screen text is read on your phone only. The only network request is downloading tag updates from GitHub.
+
+**Suggest a tag fix:** open an issue at [avershave/3s-PokeMMO-Tool/issues](https://github.com/avershave/3s-PokeMMO-Tool/issues).
+
+Device testing notes: [android/DEVICE_TEST.md](android/DEVICE_TEST.md)
+
+---
 
 ## 📊 Install telemetry
 

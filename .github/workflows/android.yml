@@ -1,0 +1,104 @@
+name: Android
+
+on:
+  pull_request:
+    paths:
+      - "android/**"
+      - "scripts/overlay/**"
+      - "tags/**"
+      - "src/lib/**"
+      - "public/data/overlay/**"
+      - ".github/workflows/android.yml"
+  push:
+    tags: ["android-v*"]
+  workflow_dispatch: {}
+
+jobs:
+  data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Build overlay data
+        run: npm run overlay:build
+
+      - name: Check generated files are up to date
+        run: git diff --exit-code public/data/overlay/tags.json android/app/src/test/resources/alias-fixtures.json
+
+      - name: Upload overlay assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: overlay-assets
+          path: android/app/src/main/assets/overlay
+          if-no-files-found: error
+
+  android:
+    needs: data
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download overlay assets
+        uses: actions/download-artifact@v4
+        with:
+          name: overlay-assets
+          path: android/app/src/main/assets/overlay
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit tests and debug build
+        run: ./gradlew :app:testDebugUnitTest :app:assembleDebug
+
+      - name: Decode keystore
+        if: startsWith(github.ref, 'refs/tags/android-v')
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+
+      - name: Build signed release
+        if: startsWith(github.ref, 'refs/tags/android-v')
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#android-v}"
+          export ANDROID_VERSION_NAME="$VERSION"
+          ./gradlew :app:assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk "3s-PokeMMO-Overlay-$VERSION.apk"
+          echo "APK_PATH=android/3s-PokeMMO-Overlay-$VERSION.apk" >> "$GITHUB_ENV"
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/android-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.APK_PATH }}
