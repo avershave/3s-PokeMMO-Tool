@@ -20,9 +20,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -39,6 +43,17 @@ import com.pokemmo.tool.overlay.capture.CaptureService
 import com.pokemmo.tool.overlay.state.OverlayStateBus
 import com.pokemmo.tool.overlay.ui.SetupChecklist
 import com.pokemmo.tool.overlay.ui.SetupState
+
+// Dark scheme tuned for rgba(18,20,28): bright filled/text buttons, muted but visible when disabled.
+private val OverlayColors = darkColorScheme(
+    primary = Color(0xFF7FB2FF),
+    onPrimary = Color(0xFF0B1220),
+    primaryContainer = Color(0xFF2E6FD8),
+    onPrimaryContainer = Color.White,
+    surface = Color(18, 20, 28),
+    onSurface = Color(0xFFE8EAF0),
+    onSurfaceVariant = Color(0xFFB8BDC9),
+)
 
 class MainActivity : ComponentActivity() {
     private var overlayGranted by mutableStateOf(false)
@@ -58,7 +73,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
         refresh()
-        setContent { Screen() }
+        setContent {
+            MaterialTheme(colorScheme = OverlayColors) { Screen() }
+        }
     }
 
     override fun onResume() {
@@ -78,10 +95,17 @@ class MainActivity : ComponentActivity() {
         val capturing by OverlayStateBus.capturing.collectAsState()
         val s = SetupState(overlayGranted, notificationsGranted, capturing)
         val light = Color(0xFFE8EAF0)
+        val buttonColors = ButtonDefaults.buttonColors(
+            containerColor = Color(0xFF7FB2FF),
+            contentColor = Color(0xFF0B1220),
+            disabledContainerColor = Color(0xFF2A2E3B),
+            disabledContentColor = Color(0xFF8A90A0),
+        )
         Column(
             Modifier
                 .fillMaxSize()
                 .background(Color(18, 20, 28))
+                .safeDrawingPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -102,6 +126,12 @@ class MainActivity : ComponentActivity() {
                     }, enabled = !s.notificationsGranted) { Text("Allow notifications") }
                 }
             }
+            if (Build.VERSION.SDK_INT >= 33 && !s.notificationsGranted) {
+                Text(
+                    "Without notifications you won't see the Stop button in the notification shade.",
+                    color = Color(0xFFFFC27A), fontSize = 13.sp,
+                )
+            }
             Text(
                 "When asked what to share, choose PokeMMO as the app, or the entire screen. " +
                     "Sharing only the PokeMMO window keeps the overlay out of the capture.",
@@ -113,11 +143,13 @@ class MainActivity : ComponentActivity() {
                     projectionLauncher.launch(mpm.createScreenCaptureIntent())
                 },
                 enabled = SetupChecklist.startEnabled(s),
+                colors = buttonColors,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Start overlay") }
             Button(
                 onClick = { CaptureService.stop(this@MainActivity) },
                 enabled = SetupChecklist.stopEnabled(s),
+                colors = buttonColors,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Stop overlay") }
             Spacer(Modifier.height(8.dp))
