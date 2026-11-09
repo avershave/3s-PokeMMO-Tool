@@ -23,7 +23,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.util.DisplayMetrics
 import android.util.Log
-import android.view.WindowManager
+import android.view.Display
 import com.pokemmo.tool.overlay.battle.BattleParser
 import com.pokemmo.tool.overlay.battle.CaughtDetector
 import com.pokemmo.tool.overlay.battle.OcrLine
@@ -37,9 +37,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Foreground service: MediaProjection -> VirtualDisplay -> ImageReader, then every
@@ -48,16 +52,24 @@ import kotlinx.coroutines.launch
  */
 class CaptureService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private var loop: Job? = null
 
-    private var projection: MediaProjection? = null
-    private var display: VirtualDisplay? = null
-    private var reader: ImageReader? = null
-    private var ocr: OcrEngine? = null
-    private var stopping = false
+    /** Runs teardown; deliberately not cancelled with [scope], since it waits for the loop. */
+    private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    @Volatile private var loop: Job? = null
+
+    @Volatile private var projection: MediaProjection? = null
+    @Volatile private var display: VirtualDisplay? = null
+
+    // reader/width/height are only touched by the tick loop (and by startCapture before it
+    // starts), so a resize swap cannot race with a tick.
+    @Volatile private var reader: ImageReader? = null
+    @Volatile private var ocr: OcrEngine? = null
+    @Volatile private var stopping = false
 
     private var width = 0
     private var height = 0
+    private var dpi = 0
+    private var skipNextTick = false
 
     /** Region of the last confirmed overworld area; passed to the matcher as a tie-break hint. */
     @Volatile private var currentRegion: String? = null
@@ -69,29 +81,25 @@ class CaptureService : Service() {
             shutdown()
             return START_NOT_STICKY
         }
-        if (projection != null) return START_NOT_STICKY
-
-        val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
-            ?: Activity.RESULT_CANCELED
-        val consent: Intent? = if (Build.VERSION.SDK_INT >= 33) {
-            intent?.getParcelableExtra(EXTRA_CONSENT, Intent::class.java)
-        } else {
-            @Suppress("DEPRECATION") intent?.getParcelableExtra(EXTRA_CONSENT)
-        }
-        if (resultCode != Activity.RESULT_OK || consent == null) {
-            stopSelf()
-            return START_NOT_STICKY
-        }
-
-        // Android 14+: the mediaProjection foreground service must be running before
-        // getMediaProjection is called.
-        startForeground(
-            NOTIFICATION_ID,
-            buildNotification(),
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION,
-        )
+        if (projection != null || stopping) return START_NOT_STICKY
 
         try {
+            // We were launched with startForegroundService, so always enter the foreground
+            // first (also on bad consent), and before getMediaProjection (Android 14+).
+            startForeground(
+                NOTIFICATION_ID,
+                buildNotification(),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION,
+            )
+
+            val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
+                ?: Activity.RESULT_CANCELED
+            val consent: Intent? = if (Build.VERSION.SDK_INT >= 33) {
+                intent?.getParcelableExtra(EXTRA_CONSENT, Intent::class.java)
+            } else {
+                @Suppress("DEPRECATION") intent?.getParcelableExtra(EXTRA_CONSENT)
+            }
+            check(resultCode == Activity.RESULT_OK && consent != null) { "projection consent denied" }
             startCapture(resultCode, consent)
         } catch (e: Exception) {
             Log.e(TAG, "capture start failed", e)
@@ -116,7 +124,7 @@ class CaptureService : Service() {
         val metrics = realMetrics()
         width = metrics.widthPixels
         height = metrics.heightPixels
-        if (height > width) Log.w(TAG, "portrait display ${width}x$height; regions assume landscape")
+        dpi = metrics.densityDpi
 
         val r = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
         reader = r
@@ -134,17 +142,17 @@ class CaptureService : Service() {
         val repo = OverlayRepository.fromAssets(applicationContext)
         val engine = OcrEngine().also { ocr = it }
         OverlayStateBus.setCapturing(true)
-        loop = scope.launch { runLoop(repo, engine, r) }
+        loop = scope.launch { runLoop(repo, engine) }
     }
 
-    private suspend fun runLoop(repo: OverlayRepository, engine: OcrEngine, r: ImageReader) {
+    private suspend fun runLoop(repo: OverlayRepository, engine: OcrEngine) {
         val matcher = RouteMatcher(repo.areas)
         val parser = BattleParser(repo)
         val machine = ScreenStateMachine()
-        while (scope.isActive) {
+        while (currentCoroutineContext().isActive) {
             val started = System.currentTimeMillis()
             try {
-                tick(r, engine, matcher, parser, machine)
+                tick(engine, matcher, parser, machine)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -154,13 +162,40 @@ class CaptureService : Service() {
         }
     }
 
+    /** Follows rotation: resize the display and swap in a reader of the new size. */
+    private fun syncSize(): Boolean {
+        val m = realMetrics()
+        if (!CaptureGeometry.needsResize(width, height, m.widthPixels, m.heightPixels)) return false
+        val vd = display ?: return false
+        val old = reader
+        val fresh = ImageReader.newInstance(m.widthPixels, m.heightPixels, PixelFormat.RGBA_8888, 2)
+        vd.resize(m.widthPixels, m.heightPixels, m.densityDpi)
+        vd.surface = fresh.surface
+        reader = fresh
+        old?.close()
+        width = m.widthPixels
+        height = m.heightPixels
+        dpi = m.densityDpi
+        return true
+    }
+
     private suspend fun tick(
-        r: ImageReader,
         engine: OcrEngine,
         matcher: RouteMatcher,
         parser: BattleParser,
         machine: ScreenStateMachine,
     ) {
+        if (syncSize()) {
+            skipNextTick = true
+            return
+        }
+        if (skipNextTick) {
+            skipNextTick = false
+            return
+        }
+        // Regions are fractions of the landscape screen; portrait frames are meaningless.
+        if (!CaptureGeometry.isLandscape(width, height)) return
+        val r = reader ?: return
         val frame = r.acquireLatestImage()?.use { toBitmap(it) } ?: return
         try {
             val routeRect = ScreenRegions.ROUTE.toPixels(width, height)
@@ -188,6 +223,7 @@ class CaptureService : Service() {
                     }
                 }
 
+                currentCoroutineContext().ensureActive()
                 val state = machine.onTick(route, groups)
                 when (state) {
                     is ScreenState.Overworld -> currentRegion = state.area.region
@@ -228,16 +264,11 @@ class CaptureService : Service() {
 
     @Suppress("DEPRECATION")
     private fun realMetrics(): DisplayMetrics {
-        val wm = getSystemService(WindowManager::class.java)
+        // The default display reports the current rotation, unlike a non-visual context's
+        // window metrics.
+        val dm = getSystemService(DisplayManager::class.java)
         val m = DisplayMetrics()
-        if (Build.VERSION.SDK_INT >= 30) {
-            val b = wm.maximumWindowMetrics.bounds
-            m.widthPixels = b.width()
-            m.heightPixels = b.height()
-            m.densityDpi = resources.displayMetrics.densityDpi
-        } else {
-            wm.defaultDisplay.getRealMetrics(m)
-        }
+        dm.getDisplay(Display.DEFAULT_DISPLAY).getRealMetrics(m)
         return m
     }
 
@@ -263,14 +294,25 @@ class CaptureService : Service() {
     private fun shutdown() {
         if (stopping) return
         stopping = true
-        loop?.cancel()
-        display?.release(); display = null
-        reader?.close(); reader = null
-        projection?.stop(); projection = null
-        ocr?.close(); ocr = null
-        OverlayStateBus.setCapturing(false)
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
+        val job = loop
+        cleanupScope.launch {
+            // OcrEngine.read is not cancellable, so joining also waits out any in-flight
+            // ML Kit call; only then is it safe to release what the tick uses.
+            job?.cancelAndJoin()
+            try {
+                display?.release(); display = null
+                reader?.close(); reader = null
+                projection?.stop(); projection = null
+                ocr?.close(); ocr = null
+            } catch (e: Exception) {
+                Log.w(TAG, "release failed", e)
+            }
+            withContext(Dispatchers.Main) {
+                OverlayStateBus.setCapturing(false) // publishes Idle, after the loop is gone
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            }
+        }
     }
 
     override fun onDestroy() {

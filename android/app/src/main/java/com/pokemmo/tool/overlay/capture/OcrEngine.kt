@@ -7,7 +7,7 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.pokemmo.tool.overlay.battle.OcrLine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
-import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.suspendCoroutine
 
 /** On-device ML Kit (bundled Latin model) text recognition. Nothing leaves the phone. */
 class OcrEngine {
@@ -18,7 +18,9 @@ class OcrEngine {
      * bitmap's origin in the full screen, so the returned boxes are in full-screen pixels.
      */
     suspend fun read(bitmap: Bitmap, offsetX: Int = 0, offsetY: Int = 0): List<OcrLine> =
-        suspendCancellableCoroutine { cont ->
+        // Deliberately not cancellable: ML Kit keeps reading the bitmap after cancellation, and
+        // the caller recycles it as soon as this returns.
+        suspendCoroutine { cont ->
             recognizer.process(InputImage.fromBitmap(bitmap, 0))
                 .addOnSuccessListener { text ->
                     val lines = text.textBlocks.flatMap { it.lines }.mapNotNull { line ->
