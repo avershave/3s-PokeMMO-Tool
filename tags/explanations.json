@@ -1,0 +1,74 @@
+{
+  "pvp.smogon": {
+    "title": "Competitive pick",
+    "summary": "Smogon Gen 5 viable",
+    "body": "Smogon ranks Pokémon into usage-based tiers, and this one (or its evolution) shows up in the Gen 5 lists. This is based on Smogon Gen 5, and PokeMMO's own tiers may differ, so treat it as a strong hint rather than a rule.",
+    "more": "Smogon's tiers go OU, UU, RU, then NU: OU holds the Pokémon people use most, and each step down is a lower usage bracket where those Pokémon don't have to compete with the best. A lower-tier Pokémon can still be great in PvP, because a good matchup matters more than a big name. This is Smogon Gen 5 data and PokeMMO's own tiers may differ, so check the current PokeMMO meta before you commit time to training one."
+  },
+  "ev": {
+    "title": "EV yield",
+    "summary": "EVs when defeated",
+    "body": "Every Pokémon you defeat adds EVs to the Pokémon that fought it, and this is the stat it gives. Training EVs is how you push a stat above what its level alone gives you.",
+    "more": "A Pokémon can hold 252 EVs in one stat and 510 in total, and every 4 EVs in a stat adds 1 point at level 100. Most competitive teams put 252 into two stats and the leftover into a third. To train a stat, battle Pokémon that yield it until you hit the cap."
+  },
+  "utility.pickup": {
+    "title": "Pickup",
+    "summary": "Finds items after battle",
+    "body": "A Pokémon with Pickup can find an item after a battle. Players keep one in their party while they grind or hunt, so items come in on the side.",
+    "more": "Pickup works from your party, so it costs a team slot but no extra time. It rewards the grinding you were going to do anyway."
+  },
+  "utility.synchronize": {
+    "title": "Synchronize",
+    "summary": "Nature hunting lead",
+    "body": "Put a Synchronize Pokémon first in your party and wild Pokémon have a 50% chance to share its nature. Players keep one of each useful nature to hunt and breed with.",
+    "more": "Nature matters because it raises one stat by 10% and lowers another, so the right nature is the difference between a good Pokémon and a perfect one. Bring a Synchronize lead of the nature you want, and you will meet that nature half the time instead of rarely."
+  },
+  "utility.compoundeyes": {
+    "title": "Compound Eyes",
+    "summary": "More wild held items",
+    "body": "A Pokémon with Compound Eyes in the lead slot makes wild Pokémon more likely to be holding their items. It also raises the accuracy of its own moves.",
+    "more": "Use it when you are farming a wild Pokémon for the item it holds. Pair it with Thief or Covet to steal an item without fighting for it."
+  },
+  "utility.frisk": {
+    "title": "Frisk",
+    "summary": "Reveals foe's held item",
+    "body": "When a Frisk Pokémon enters battle it shows the held item of the opposing Pokémon. Lead with it when you are hunting for a specific item, so you know whether a wild Pokémon is worth the fight.",
+    "more": "In PvP the same effect tells you what your opponent's Pokémon is holding on the turn it comes out, such as a Choice item or a berry, which changes how you play the rest of the match."
+  },
+  "utility.payday": {
+    "title": "Pay Day",
+    "summary": "Money from battles",
+    "body": "Pay Day scatters coins when it hits, and you collect them as money once the battle ends. How much you get scales with the level of the Pokémon using it, so it is a steady way to earn money while you grind.",
+    "more": "Money from Pay Day adds up when you are already fighting. Use it as your attack against wild Pokémon you are going to defeat anyway."
+  },
+  "utility.thief": {
+    "title": "Thief",
+    "summary": "Steals foe's held item",
+    "body": "Thief takes the held item from the target if your Pokémon is not holding one. That lets you collect items from wild Pokémon without defeating them.",
+    "more": "Make sure the Pokémon using Thief holds nothing first. Once it has stolen an item, it stops stealing until you take that item off it."
+  },
+  "utility.covet": {
+    "title": "Covet",
+    "summary": "Steals foe's held item",
+    "body": "Covet hits and then takes the target's held item, as long as your Pokémon is not holding one. It works like Thief, so use it to collect items from wild Pokémon.",
+    "more": "Covet and Thief do the same job, so whichever one your Pokémon learns by level-up is the one to use. You pick it for the item, not the damage."
+  },
+  "utility.falseswipe": {
+    "title": "False Swipe",
+    "summary": "Leaves foes at 1 HP",
+    "body": "False Swipe can never knock a Pokémon out, it always leaves the target with at least 1 HP. It is a catching tool: weaken the wild Pokémon without defeating it, then throw a ball.",
+    "more": "A Pokémon at low HP is much easier to catch. Pair False Swipe with a status move like Spore to make a catch very safe."
+  },
+  "utility.sweetscent": {
+    "title": "Sweet Scent",
+    "summary": "Lowers foe evasion",
+    "body": "Sweet Scent lowers the evasion of the target in battle. That helps moves that can miss, like sleep moves, land more often.",
+    "more": "Evasion boosts make your moves miss more, and Sweet Scent pushes the target the other way. It is a support move, so you only run it when accuracy is the problem."
+  },
+  "utility.spore": {
+    "title": "Spore",
+    "summary": "Reliable sleep for catching",
+    "body": "Spore puts the target to sleep and hits reliably. A sleeping wild Pokémon is easier to catch, so Spore pairs well with False Swipe.",
+    "more": "Sleep also stops the target from attacking for a few turns. That gives you time to weaken it with False Swipe and throw balls."
+  }
+}
