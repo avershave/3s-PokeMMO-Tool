@@ -11,11 +11,10 @@ class RouteMatcher(private val areas: List<Area>) {
         val GENERIC = listOf("city", "town", "forest", "cave", "road", "gate", "outside", "inside", "entrance", "exit")
         val DOT_CUT = Regex("\\s*[·•]\\s*")
         val CHANNEL_MARKER = Regex("[·•-]\\s*CH\\s*\\d+", RegexOption.IGNORE_CASE)
-        val ROUTE_NUM = Regex("route\\s*(\\d+)", RegexOption.IGNORE_CASE)
+        val ROUTE_NUM = Regex("route\\s*(\\d+)(?![A-Za-z0-9])", RegexOption.IGNORE_CASE)
+        val ROUTE_LINE = Regex("^route\\b", RegexOption.IGNORE_CASE)
         val ALL_CAPS = Regex("^\\p{Lu}{3,}$")
     }
-
-    private val byKey: Map<String, List<Area>> = areas.groupBy { it.key }
 
     fun match(ocrLine: String, currentRegion: String?): Area? {
         val cleaned = clean(ocrLine)
@@ -29,8 +28,10 @@ class RouteMatcher(private val areas: List<Area>) {
         // retry with generic words repaired.
         val fixedKey = AliasKey.of(repairGenericWords(cleaned))
         val keys = listOf(key, fixedKey).filter { it.isNotEmpty() }.distinct()
-        var candidates = keys.firstNotNullOfOrNull { k -> pool.filter { it.key == k }.ifEmpty { null } }
-            ?: keys.firstNotNullOfOrNull { k -> fuzzy(pool, k).ifEmpty { null } }
+        // A route number is all-or-nothing: route lines never use the fuzzy fallback.
+        val isRouteLine = ROUTE_LINE.containsMatchIn(cleaned)
+        val candidates = keys.firstNotNullOfOrNull { k -> pool.filter { it.key == k }.ifEmpty { null } }
+            ?: (if (isRouteLine) null else keys.firstNotNullOfOrNull { k -> fuzzy(pool, k).ifEmpty { null } })
             ?: emptyList()
 
         if (candidates.isNotEmpty()) return choose(candidates, cleaned, currentRegion)
