@@ -35,7 +35,8 @@ export function descendants(dexById, id) {
 }
 
 export function hasOutline(tags) {
-  return tags.some(t => t.kind === 'pvp' || t.kind === 'story' || t.kind === 'utility');
+  // PvP only counts for OU/UU (own or carried down); RU/NU still show on the card.
+  return tags.some(t => (t.kind === 'pvp' && (t.tier === 'ou' || t.tier === 'uu')) || t.kind === 'story' || t.kind === 'utility');
 }
 
 function evSummary(yields) {
@@ -110,7 +111,7 @@ export function buildTags({ dex, smogon = {}, utilityRules = [], explanations = 
     }
     if (pvpTier !== null) {
       const ex = explain('pvp.smogon');
-      const tag = { kind: 'pvp', key: 'pvp.smogon', summary: `Smogon Gen 5 ${TIERS[pvpTier].toUpperCase()}` };
+      const tag = { kind: 'pvp', key: 'pvp.smogon', summary: `Smogon Gen 5 ${TIERS[pvpTier].toUpperCase()}`, tier: TIERS[pvpTier] };
       if (ex?.body) tag.body = ex.body;
       if (pvpId !== mon.id) {
         tag.via = pvpId;
