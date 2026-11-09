@@ -27,3 +27,6 @@ resources/telemetry.config.json
 temp_*.txt
 tmp_*.txt
 patchnotes.txt
+
+# Brainstorming mockups and reference screenshots
+.superpowers/
