@@ -45,10 +45,13 @@ const val EMPTY_STRIP_TEXT = "No wild Pokémon here"
 /** [StripModel.items] holds only the visible items; [StripModel.overflow] counts the hidden rest. */
 fun buildStrip(area: Area, repo: OverlayRepository, maxVisible: Int): StripModel {
     val all = area.spawns.distinctBy { it.id }.map { sp ->
-        val outline = repo.tags(sp.id)
-            .mapNotNull { TagKind.of(it.kind) }
-            .filter { it != TagKind.EV }
-            .minOrNull()
+        val tags = repo.tags(sp.id)
+        // repo.hasOutline decides; the kind mapping only picks the colour (PvP > Story > Utility).
+        val outline = if (repo.hasOutline(tags)) {
+            tags.filter { repo.hasOutline(listOf(it)) }.mapNotNull { TagKind.of(it.kind) }.minOrNull()
+        } else {
+            null
+        }
         StripItem(sp.id, sp.name, outline, dimmed = outline == null)
     }
     val sorted = all.sortedWith(
