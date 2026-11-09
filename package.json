@@ -13,6 +13,7 @@
     "electron:dev:debug": "concurrently -k -s first \"vite build --watch --emptyOutDir\" \"wait-on -v file:dist/index.html && cross-env ELECTRON_RUN_AS_NODE= ELECTRON_DIST_WATCH=1 OPEN_DEVTOOLS=1 electron .\"",
     "electron:dev:server": "concurrently -k -s first \"vite --strictPort\" \"wait-on -v http-get://localhost:5173/index.html http-get://localhost:5173/src/main.jsx && cross-env ELECTRON_RUN_AS_NODE= ELECTRON_START_URL=http://localhost:5173 OPEN_DEVTOOLS=1 electron .\"",
     "build": "vite build",
+    "test": "vitest run",
     "start": "cross-env ELECTRON_RUN_AS_NODE= electron .",
     "build:helper": "node ./scripts/run-build-helper.js",
     "clean": "rimraf release",
@@ -148,6 +149,7 @@
     "electron-builder": "^24.13.3",
     "rimraf": "^5.0.10",
     "vite": "^5.4.0",
+    "vitest": "^2.1.9",
     "wait-on": "^7.2.0"
   }
 }
