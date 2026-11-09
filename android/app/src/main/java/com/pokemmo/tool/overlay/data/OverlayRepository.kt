@@ -30,9 +30,10 @@ class OverlayRepository(
 
     fun tip(id: Int): String? = tagsFile.tips[id.toString()]
 
-    /** Same rule as scripts/overlay/tags.js: EV never counts toward the outline. */
-    fun hasOutline(tags: List<Tag>): Boolean =
-        tags.any { it.kind == "pvp" || it.kind == "story" || it.kind == "utility" }
+    /** Same rule as scripts/overlay/tags.js: PvP counts only for OU/UU; EV never counts. */
+    fun hasOutline(tags: List<Tag>): Boolean = tags.any {
+        (it.kind == "pvp" && (it.tier == "ou" || it.tier == "uu")) || it.kind == "story" || it.kind == "utility"
+    }
 
     fun withTags(tagsJson: String): OverlayRepository =
         OverlayRepository(pokemonJson, areasJson, tagsJson)

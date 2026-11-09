@@ -44,6 +44,7 @@ data class Tag(
     val key: String,
     val summary: String,
     val body: String? = null,
+    val tier: String? = null,
     val via: Int? = null,
     val viaName: String? = null,
 )

@@ -83,6 +83,14 @@ class OverlayRepositoryTest {
     }
 
     @Test
+    fun pvpOutlinesOnlyForOuAndUu() {
+        assertTrue(repo.hasOutline(listOf(Tag("pvp", "pvp.smogon", "s", tier = "uu"))))
+        assertTrue(repo.hasOutline(listOf(Tag("pvp", "pvp.smogon", "s", tier = "ou"))))
+        assertFalse(repo.hasOutline(listOf(Tag("pvp", "pvp.smogon", "s", tier = "nu"))))
+        assertFalse(repo.hasOutline(listOf(Tag("pvp", "pvp.smogon", "s", tier = "ru"))))
+    }
+
+    @Test
     fun evOnlyTagHasNoOutline() {
         assertFalse(repo.hasOutline(listOf(Tag("ev", "ev", "+1 Spe"))))
     }

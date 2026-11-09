@@ -35,6 +35,14 @@ test('EV tag text and outline ignores EV', () => {
   expect(t.find(x => x.kind === 'ev').summary).toBe('+3 Sp. Atk');
   expect(hasOutline([{ kind: 'ev', key: 'ev', summary: '+1 Spe' }])).toBe(false);
 });
+test('PvP tier carries a tier field; UU outlines, NU does not', () => {
+  const pvp = buildTags(base).pokemon[63].find(x => x.kind === 'pvp');
+  expect(pvp.tier).toBe('uu');
+  expect(hasOutline([pvp])).toBe(true);
+  const nu = buildTags({ ...base, smogon: { ou: [], uu: [], ru: [], nu: ['Alakazam'] } }).pokemon[63].find(x => x.kind === 'pvp');
+  expect(nu.tier).toBe('nu');
+  expect(hasOutline([nu])).toBe(false);
+});
 test('descendants is transitive and cycle-safe', () => {
   const byId = new Map(dex.map(d => [d.id, d]));
   expect(descendants(byId, 63)).toEqual([64, 65]);
