@@ -14,6 +14,7 @@
     "electron:dev:server": "concurrently -k -s first \"vite --strictPort\" \"wait-on -v http-get://localhost:5173/index.html http-get://localhost:5173/src/main.jsx && cross-env ELECTRON_RUN_AS_NODE= ELECTRON_START_URL=http://localhost:5173 OPEN_DEVTOOLS=1 electron .\"",
     "build": "vite build",
     "test": "vitest run",
+    "overlay:build": "vite-node scripts/overlay/build-overlay-data.mjs",
     "start": "cross-env ELECTRON_RUN_AS_NODE= electron .",
     "build:helper": "node ./scripts/run-build-helper.js",
     "clean": "rimraf release",
@@ -150,7 +151,9 @@
     "electron": "^30.5.1",
     "electron-builder": "^24.13.3",
     "rimraf": "^5.0.10",
+    "sharp": "^0.35.5",
     "vite": "^5.4.0",
+    "vite-node": "^2.1.9",
     "vitest": "^2.1.9",
     "wait-on": "^7.2.0"
   }

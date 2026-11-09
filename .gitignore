@@ -30,3 +30,9 @@ patchnotes.txt
 
 # Brainstorming mockups and reference screenshots
 .superpowers/
+
+# Android overlay
+android/app/src/main/assets/overlay/
+android/.gradle/
+android/**/build/
+android/local.properties
