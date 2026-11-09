@@ -43,7 +43,7 @@ A phone companion that shows tags for the Pokémon you are battling as an overla
 - Notifications (keeps the overlay service running)
 - Screen capture (choose **PokéMMO** when asked)
 
-**Privacy:** Screen text is read on your phone only. The only network request is downloading tag updates from GitHub.
+**Privacy:** Screen text is read on your phone only. Screenshots and screen text never leave the phone. The app downloads tag updates from GitHub. Google's ML Kit library, used for reading text, may send anonymous usage statistics to Google.
 
 **Suggest a tag fix:** open an issue at [avershave/3s-PokeMMO-Tool/issues](https://github.com/avershave/3s-PokeMMO-Tool/issues).
 
