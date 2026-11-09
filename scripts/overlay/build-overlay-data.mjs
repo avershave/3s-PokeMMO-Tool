@@ -103,7 +103,9 @@ export function buildOverlayData({ dexList, hordeRegions, catchRates, tagInputs 
   const pokemon = buildPokemon(dexList, catchRates);
   const areas = buildAreas(dexList, hordeRegions);
   const built = buildTags({
-    dex: dexList,
+    // Base mons only (ids 1..649). Verified no base mon evolves into an id > 649,
+    // so descendant carry-down is unaffected.
+    dex: dexList.filter(isBaseMon),
     smogon: tagInputs.smogon,
     utilityRules: tagInputs.utilityRules,
     explanations: tagInputs.explanations,

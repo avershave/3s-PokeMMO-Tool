@@ -84,6 +84,20 @@ test('tags.generatedAt comes from version.json', () => {
   expect(out.tags.schemaVersion).toBe(1);
 });
 
+test('every tags.pokemon key is within 1..649 and matches pokemon.json', () => {
+  const keys = Object.keys(out.tags.pokemon).map(Number);
+  expect(keys.every(k => Number.isInteger(k) && k >= 1 && k <= 649)).toBe(true);
+  const ids = new Set(out.pokemon.pokemon.map(p => p.id));
+  expect(keys.every(k => ids.has(k))).toBe(true);
+});
+
+test('no base mon evolves into an id above 649 (filtering dex is safe)', () => {
+  for (const m of DEX_LIST) {
+    if (m.id > 649) continue;
+    for (const e of m.evolutions || []) expect(e.id).toBeLessThanOrEqual(649);
+  }
+});
+
 test('deterministic', () => {
   expect(JSON.stringify(buildOverlayData(inputs()))).toBe(JSON.stringify(out));
 });
