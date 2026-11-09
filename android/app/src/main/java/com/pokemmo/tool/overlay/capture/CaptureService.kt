@@ -32,6 +32,7 @@ import com.pokemmo.tool.overlay.match.RouteMatcher
 import com.pokemmo.tool.overlay.state.OverlayStateBus
 import com.pokemmo.tool.overlay.state.ScreenState
 import com.pokemmo.tool.overlay.state.ScreenStateMachine
+import com.pokemmo.tool.overlay.ui.OverlayWindows
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -65,6 +66,7 @@ class CaptureService : Service() {
     @Volatile private var reader: ImageReader? = null
     @Volatile private var ocr: OcrEngine? = null
     @Volatile private var stopping = false
+    private var overlay: OverlayWindows? = null // Main thread only
 
     private var width = 0
     private var height = 0
@@ -140,6 +142,7 @@ class CaptureService : Service() {
         )
 
         val repo = OverlayRepository.fromAssets(applicationContext)
+        overlay = OverlayWindows(this, repo)
         val engine = OcrEngine().also { ocr = it }
         OverlayStateBus.setCapturing(true)
         loop = scope.launch { runLoop(repo, engine) }
@@ -308,6 +311,7 @@ class CaptureService : Service() {
                 Log.w(TAG, "release failed", e)
             }
             withContext(Dispatchers.Main) {
+                overlay?.dispose(); overlay = null
                 OverlayStateBus.setCapturing(false) // publishes Idle, after the loop is gone
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
