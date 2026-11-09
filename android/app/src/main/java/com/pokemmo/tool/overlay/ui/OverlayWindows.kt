@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
+import android.os.Build
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.Display
@@ -105,11 +106,6 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
         override fun onLowMemory() = Unit
     }
 
-    init {
-        context.registerComponentCallbacks(callbacks)
-        scope.launch { OverlayStateBus.state.collect { onState(it) } }
-    }
-
     private fun onState(s: ScreenState) = guarded {
         val prev = current
         current = s
@@ -134,13 +130,41 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
         return m
     }
 
+    /**
+     * ScreenRegions are fractions of the full display (real metrics, same as the capture). To make
+     * window coordinates equal capture coordinates the window must be laid out against the whole
+     * display, not the frame that excludes the camera cutout and system bars: layout in screen, cutout
+     * mode ALWAYS (SHORT_EDGES on API 29), and no fit-insets. Callers then use gravity TOP|START with
+     * absolute pixel x/y.
+     */
     private fun baseParams(flags: Int, w: Int, h: Int) = WindowManager.LayoutParams(
         w, h,
         WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
         WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or flags,
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or flags,
         PixelFormat.TRANSLUCENT,
-    )
+    ).also {
+        it.gravity = Gravity.TOP or Gravity.START
+        if (Build.VERSION.SDK_INT >= 30) {
+            it.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            it.fitInsetsTypes = 0
+            it.fitInsetsSides = 0
+        } else {
+            it.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+    }
+
+    /** Left edge that centres a window of [widthPx] on [centre]; never off the left of the screen. */
+    private fun centredX(centre: Int, widthPx: Int) = (centre - widthPx / 2).coerceAtLeast(0)
+
+    /** Re-renders when a centred window's measured width changes, so x can be recomputed. */
+    private fun watchWidth(view: View, set: (Int) -> Int) {
+        view.addOnLayoutChangeListener { _, l, _, r, _, _, _, _, _ ->
+            val w = r - l
+            if (w > 0 && set(w) != w) render()
+        }
+    }
 
     private fun newView(content: @androidx.compose.runtime.Composable () -> Unit): ComposeView =
         ComposeView(context).also {
@@ -151,6 +175,20 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
 
     // isAttachedToWindow lags addView by a traversal, so track adds explicitly.
     private val added = HashSet<View>()
+
+    // Measured widths of the centred windows; used to compute x ourselves (see centredX).
+    private var stripWidthPx = 0
+    private var cardWidthPx = 0
+
+    // Keep this init block AFTER every field above. The collector runs on Dispatchers.Main.immediate,
+    // so while the object is still being constructed on Main it renders the current Idle state
+    // straight away. Fields declared below this block are still null then, which throws an NPE
+    // (swallowed by guarded), and StateFlow never re-emits an equal Idle value, so the strip would
+    // never appear at start-up.
+    init {
+        context.registerComponentCallbacks(callbacks)
+        scope.launch { OverlayStateBus.state.collect { onState(it) } }
+    }
 
     private fun show(view: View?, params: WindowManager.LayoutParams) {
         if (view == null) return
@@ -218,10 +256,12 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
                         render()
                     },
                 )
-            }.also { stripView = it }
+            }.also {
+                stripView = it
+                watchWidth(it) { w -> stripWidthPx.also { stripWidthPx = w } }
+            }
             val p = baseParams(0, WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT)
-            p.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            p.x = (rect.left + rect.right) / 2 - m.widthPixels / 2
+            p.x = centredX((rect.left + rect.right) / 2, stripWidthPx)
             p.y = rect.top
             show(view, p)
         }
@@ -242,7 +282,6 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
                 )
             }.also { panelView = it }
             val p = baseParams(0, WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT)
-            p.gravity = Gravity.TOP or Gravity.START
             p.x = rect.left
             p.y = rect.top
             show(view, p)
@@ -273,6 +312,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
                 false
             }
             cardView = v
+            watchWidth(v) { w -> cardWidthPx.also { cardWidthPx = w } }
         }
         view.setContent {
             val c = openCard
@@ -288,13 +328,11 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
             WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT)
         if (oc.fromBattle) {
             val panel = ScreenRegions.BATTLE_PANEL.toPixels(m.widthPixels, m.heightPixels)
-            p.gravity = Gravity.TOP or Gravity.START
             p.x = panel.right + (6 * density).toInt()
             p.y = panel.top
         } else {
             val strip = ScreenRegions.STRIP_AREA.toPixels(m.widthPixels, m.heightPixels)
-            p.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            p.x = (strip.left + strip.right) / 2 - m.widthPixels / 2
+            p.x = centredX((strip.left + strip.right) / 2, cardWidthPx)
             p.y = strip.bottom
         }
         show(view, p)
