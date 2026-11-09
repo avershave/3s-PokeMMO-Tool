@@ -61,6 +61,23 @@ class OverlayRepositoryTest {
     }
 
     @Test
+    fun nameKeyKeepsDigits() {
+        assertEquals("porygon2", NameKey.of("Porygon2"))
+    }
+
+    @Test
+    fun porygonAndPorygon2AreDistinct() {
+        assertEquals(137, repo.pokemonByName(NameKey.of("Porygon"))!!.id)
+        assertEquals(233, repo.pokemonByName(NameKey.of("Porygon2"))!!.id)
+    }
+
+    @Test
+    fun noTwoPokemonShareANameKey() {
+        val dupes = repo.allPokemon.groupBy { NameKey.of(it.name) }.filter { it.value.size > 1 }
+        assertTrue("NameKey collisions: $dupes", dupes.isEmpty())
+    }
+
+    @Test
     fun meowthHasOutline() {
         assertTrue(repo.hasOutline(repo.tags(52)))
     }
