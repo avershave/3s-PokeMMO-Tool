@@ -2,12 +2,16 @@
 
 ## Install
 
-1. Enable USB debugging on the phone and plug it in.
-2. Confirm it is listed:
+1. Generate the overlay data (from the repo root):
+   ```
+   npm run overlay:build
+   ```
+2. Enable USB debugging on the phone and plug it in.
+3. Confirm it is listed:
    ```
    adb devices
    ```
-3. Install the debug APK (Git Bash, from `android/`):
+4. Install the debug APK (Git Bash, from `android/`):
    ```
    cd android
    JAVA_HOME="$LOCALAPPDATA/Programs/jdk-17" ./gradlew :app:installDebug
@@ -26,7 +30,11 @@
 
 - [ ] The strip shows the correct route within about 2 s of entering it.
 - [ ] A wild battle swaps to the panel with correct weaknesses and catch rate, and caught matches the in-game ball.
-- [ ] A 5-horde shows "x5".
+- [ ] A 5-horde shows "x5", and a mixed horde shows each species with its own count.
+- [ ] Standing still after a battle ends clears the panel and the strip returns.
+- [ ] Pressing Start while PokeMMO is already in landscape works.
+- [ ] Both landscape orientations work (camera on the left and on the right): the strip and panel line up with the game and do not cover the route name.
+- [ ] Oreburgh City and Mistralton City show "No wild Pokémon here" with the right name, not Oreburgh Gate or Mistralton Cave.
 - [ ] The panel returns to the strip after the battle.
 - [ ] Nothing covers the route name or the opponent names.
 - [ ] Tapping a sprite opens the card, and tapping a row expands only that row.
@@ -42,4 +50,4 @@ adb exec-out screencap -p > shot.png
 
 - `app/src/main/java/com/pokemmo/tool/overlay/capture/ScreenRegions.kt`: adjust the region constants against `shot.png`.
 - `app/src/main/java/com/pokemmo/tool/overlay/battle/CaughtDetector.kt`: adjust the thresholds.
-- Re-run the regions test: `JAVA_HOME="$LOCALAPPDATA/Programs/jdk-17" ./gradlew :app:testDebugUnitTest`
+- Re-run the regions test: `JAVA_HOME="$LOCALAPPDATA/Programs/jdk-17" ./gradlew :app:testDebugUnitTest --tests '*ScreenRegionsTest'`
