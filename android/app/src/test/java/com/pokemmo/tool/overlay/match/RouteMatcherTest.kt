@@ -119,4 +119,31 @@ class RouteMatcherTest {
         )
         assertEquals("Safari Zone", RouteMatcher(areas).match("Safari Zone", null)!!.name)
     }
+
+    @Test
+    fun `generic-word collisions never match the wrong area`() {
+        val oreburgh = matcher.match("Oreburgh City CITY · CH 1", null)!!
+        assertTrue(oreburgh.spawns.isEmpty())
+        assertEquals("Oreburgh City", oreburgh.name)
+
+        val mistralton = matcher.match("Mistralton City · CH 1", null)!!
+        assertTrue(mistralton.spawns.isEmpty())
+        assertEquals("Mistralton City", mistralton.name)
+    }
+
+    @Test
+    fun `generic-word typo picks the matching area by similarity`() {
+        val cerulean = matcher.match("Cerulean Clty", null)
+        if (repo.areas.any { it.name == "Cerulean City" }) {
+            assertEquals("Cerulean City", cerulean!!.name)
+        } else {
+            assertTrue(cerulean == null || cerulean.name != "Cerulean Cave")
+        }
+        assertEquals("Eterna Forest", matcher.match("Eterna Forcst", null)!!.name)
+    }
+
+    @Test
+    fun `real generic names still match`() {
+        assertEquals("Oreburgh Gate", matcher.match("Oreburgh Gate", null)!!.name)
+    }
 }

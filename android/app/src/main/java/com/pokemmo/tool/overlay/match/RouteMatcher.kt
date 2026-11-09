@@ -13,6 +13,7 @@ class RouteMatcher(private val areas: List<Area>) {
         val CHANNEL_MARKER = Regex("[·•-]\\s*CH\\s*\\d+", RegexOption.IGNORE_CASE)
         val ROUTE_NUM = Regex("route\\s*(\\d+)(?![A-Za-z0-9])", RegexOption.IGNORE_CASE)
         val ROUTE_LINE = Regex("^route\\b", RegexOption.IGNORE_CASE)
+        val NON_ALNUM = Regex("[^a-z0-9]+")
         val ALL_CAPS = Regex("^\\p{Lu}{3,}$")
     }
 
@@ -26,12 +27,18 @@ class RouteMatcher(private val areas: List<Area>) {
 
         // AliasKey drops generic words (city, town...), so a typo in one survives into the key;
         // retry with generic words repaired.
-        val fixedKey = AliasKey.of(repairGenericWords(cleaned))
+        val repaired = repairGenericWords(cleaned)
+        val fixedKey = AliasKey.of(repaired)
         val keys = listOf(key, fixedKey).filter { it.isNotEmpty() }.distinct()
+        // The key drops generic words ("Oreburgh City" -> "oreburgh"), so a name that merely shares the
+        // key ("Oreburgh Gate") must not match: candidates must contain the line's generic words too.
+        val generics = words(repaired).filter { it in GENERIC }.toSet()
+        fun sameGenerics(list: List<Area>) =
+            if (generics.isEmpty()) list else list.filter { words(it.name).containsAll(generics) }
         // A route number is all-or-nothing: route lines never use the fuzzy fallback.
         val isRouteLine = ROUTE_LINE.containsMatchIn(cleaned)
-        val candidates = keys.firstNotNullOfOrNull { k -> pool.filter { it.key == k }.ifEmpty { null } }
-            ?: (if (isRouteLine) null else keys.firstNotNullOfOrNull { k -> fuzzy(pool, k).ifEmpty { null } })
+        val candidates = keys.firstNotNullOfOrNull { k -> sameGenerics(pool.filter { it.key == k }).ifEmpty { null } }
+            ?: (if (isRouteLine) null else keys.firstNotNullOfOrNull { k -> sameGenerics(fuzzy(pool, k)).ifEmpty { null } })
             ?: emptyList()
 
         if (candidates.isNotEmpty()) return choose(candidates, cleaned, currentRegion)
@@ -55,10 +62,17 @@ class RouteMatcher(private val areas: List<Area>) {
         return CHANNEL_MARKER.find(s)?.let { s.substring(0, it.range.first).trim() } ?: s
     }
 
+    /** Whole lowercase words, like desktop tokenizeName. */
+    private fun words(s: String): List<String> =
+        s.lowercase().replace(NON_ALNUM, " ").split(' ').filter { it.isNotEmpty() }
+
+    // Words that appear verbatim in some area name are never "repaired" into a generic word.
+    private val nameWords: Set<String> by lazy { areas.flatMapTo(HashSet()) { words(it.name) } }
+
     private fun repairGenericWords(s: String): String =
         s.split(' ').joinToString(" ") { w ->
             val lw = w.lowercase()
-            if (w.length < 4 || lw in GENERIC) w
+            if (w.length < 4 || lw in GENERIC || lw in nameWords) w
             else GENERIC.firstOrNull { it.length >= 4 && levenshtein(lw, it) == 1 } ?: w
         }
 
@@ -93,8 +107,11 @@ class RouteMatcher(private val areas: List<Area>) {
             }!!
         }
         val inRegion = candidates.filter { it.region == region }
+        // Exact name first, then the name closest to the text (not the shortest: a typo'd
+        // "Cerulean Clty" must not fall to "Cerulean Cave" just because it is shorter).
+        val text = cleaned.lowercase()
         return inRegion.firstOrNull { it.name.equals(cleaned, ignoreCase = true) }
-            ?: inRegion.minByOrNull { it.name.length }!!
+            ?: inRegion.sortedBy { it.name.length }.maxByOrNull { similarity(text, it.name.lowercase()) }!!
     }
 
     private fun similarity(a: String, b: String): Double {
