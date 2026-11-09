@@ -88,6 +88,13 @@ class RouteMatcherTest {
     }
 
     @Test
+    fun `route with misread digit never jumps to another route`() {
+        assertNull(matcher.match("Route 1S", null))
+        assertNull(matcher.match("Route 1S", "Kanto"))
+        assertEquals("Route 15", matcher.match("Route 15", "Kanto")!!.name)
+    }
+
+    @Test
     fun `unknown place without marker gives null`() {
         assertNull(matcher.match("Pallet Lab", "Kanto"))
     }
