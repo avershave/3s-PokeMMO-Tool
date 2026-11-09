@@ -60,7 +60,17 @@ class OverlayLifecycleOwner : LifecycleOwner, SavedStateRegistryOwner {
  * Owns the overlay windows (strip, battle panel, detail card). Created by CaptureService
  * when capture starts and disposed in its shutdown, both on the Main thread.
  */
-class OverlayWindows(private val context: Context, private val repo: OverlayRepository) {
+class OverlayWindows(private val context: Context, initialRepo: OverlayRepository) {
+    // Main thread only. Swapped when updated tags arrive; only tags differ between copies.
+    private var repo: OverlayRepository = initialRepo
+
+    /** Swaps in a repository with updated tags and re-renders. Main thread only. */
+    fun updateRepo(newRepo: OverlayRepository) {
+        if (disposed) return
+        repo = newRepo
+        render()
+    }
+
     private val wm = context.getSystemService(WindowManager::class.java)
     private val owner = OverlayLifecycleOwner().also { it.start() }
     private val scope = CoroutineScope(
