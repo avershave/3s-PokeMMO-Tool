@@ -36,3 +36,4 @@ android/app/src/main/assets/overlay/
 android/.gradle/
 android/**/build/
 android/local.properties
+android/.kotlin/
