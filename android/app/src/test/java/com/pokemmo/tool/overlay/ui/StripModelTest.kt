@@ -30,7 +30,7 @@ class StripModelTest {
         """{"schemaVersion":1,"pokemon":{${entries.joinToString(",") { "\"${it.first}\":${it.second}" }}}}"""
 
     private fun tag(kind: String, key: String = kind, summary: String = "s") =
-        """{"kind":"$kind","key":"$key","summary":"$summary"}"""
+        """{"kind":"$kind","key":"$key","summary":"$summary"${if (kind == "pvp") ",\"tier\":\"ou\"" else ""}}"""
 
     private fun area(vararg ids: Int) = Area(
         "Kanto", "Test", "test",
@@ -41,15 +41,13 @@ class StripModelTest {
     fun route5StripOutlinesMeowthAndAbraDimsRattata() {
         val m = buildStrip(route5, repo, 50)
         val byName = m.items.associateBy { it.name }
-        assertEquals(TagKind.PVP, byName.getValue("Meowth").outline)
+        // Meowth is NU (no PvP outline) but has Pickup/Pay Day utility.
+        assertEquals(TagKind.UTILITY, byName.getValue("Meowth").outline)
         assertEquals(TagKind.PVP, byName.getValue("Abra").outline)
         assertFalse(byName.getValue("Abra").dimmed)
-        // Current generated data gives every Route 5 spawn a PvP tag (some via an evolution),
-        // so the dimmed case is checked on the first real Pokemon with no non-EV tags.
-        val plain = repo.allPokemon.first { p -> repo.tags(p.id).none { it.kind != "ev" } }
-        val dim = buildStrip(area(plain.id), repo, 5).items.single()
-        assertNull(dim.outline)
-        assertTrue(dim.dimmed)
+        // Rattata only has an NU PvP tag (carried from Raticate): no outline.
+        assertNull(byName.getValue("Rattata").outline)
+        assertTrue(byName.getValue("Rattata").dimmed)
         assertEquals("Route 5", m.title)
         assertEquals("Kanto", m.region)
     }

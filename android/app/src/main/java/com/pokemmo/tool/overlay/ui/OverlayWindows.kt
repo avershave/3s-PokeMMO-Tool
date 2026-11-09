@@ -63,7 +63,10 @@ class OverlayLifecycleOwner : LifecycleOwner, SavedStateRegistryOwner {
 class OverlayWindows(private val context: Context, private val repo: OverlayRepository) {
     private val wm = context.getSystemService(WindowManager::class.java)
     private val owner = OverlayLifecycleOwner().also { it.start() }
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val scope = CoroutineScope(
+        SupervisorJob() + Dispatchers.Main.immediate +
+            kotlinx.coroutines.CoroutineExceptionHandler { _, e -> Log.e("OverlayWindows", "overlay scope failed", e) },
+    )
     private val sprites = SpriteCache(context)
 
     private data class OpenCard(val id: Int, val card: Card, val fromBattle: Boolean)
@@ -97,7 +100,7 @@ class OverlayWindows(private val context: Context, private val repo: OverlayRepo
         scope.launch { OverlayStateBus.state.collect { onState(it) } }
     }
 
-    private fun onState(s: ScreenState) {
+    private fun onState(s: ScreenState) = guarded {
         val prev = current
         current = s
         if (areaOf(prev) != areaOf(s) || prev::class != s::class) {
@@ -136,10 +139,18 @@ class OverlayWindows(private val context: Context, private val repo: OverlayRepo
             it.setContent(content)
         }
 
+    // isAttachedToWindow lags addView by a traversal, so track adds explicitly.
+    private val added = HashSet<View>()
+
     private fun show(view: View?, params: WindowManager.LayoutParams) {
         if (view == null) return
         try {
-            if (view.isAttachedToWindow) wm.updateViewLayout(view, params) else wm.addView(view, params)
+            if (view in added) {
+                wm.updateViewLayout(view, params)
+            } else {
+                wm.addView(view, params)
+                added.add(view)
+            }
         } catch (e: RuntimeException) {
             // E.g. the overlay permission was revoked; keep the capture service alive.
             Log.w("OverlayWindows", "cannot show overlay window", e)
@@ -147,7 +158,7 @@ class OverlayWindows(private val context: Context, private val repo: OverlayRepo
     }
 
     private fun hide(view: View?) {
-        if (view != null && view.isAttachedToWindow) {
+        if (view != null && added.remove(view)) {
             try {
                 wm.removeViewImmediate(view)
             } catch (e: RuntimeException) {
@@ -156,7 +167,18 @@ class OverlayWindows(private val context: Context, private val repo: OverlayRepo
         }
     }
 
-    private fun render() {
+    private inline fun guarded(block: () -> Unit) {
+        try {
+            block()
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Log.e("OverlayWindows", "overlay update failed", e)
+        }
+    }
+
+    private fun render() = guarded { renderUnsafe() }
+
+    private fun renderUnsafe() {
         if (disposed) return
         val m = metrics()
         val density = m.density
@@ -229,6 +251,10 @@ class OverlayWindows(private val context: Context, private val repo: OverlayRepo
         }
         val density = m.density
         val maxW = (m.widthPixels * 0.4f).toInt()
+        val margin = (8 * density).toInt()
+        val topY = if (oc.fromBattle) ScreenRegions.BATTLE_PANEL.toPixels(m.widthPixels, m.heightPixels).top
+        else ScreenRegions.STRIP_AREA.toPixels(m.widthPixels, m.heightPixels).bottom
+        val maxH = (m.heightPixels - topY - margin).coerceAtLeast((80 * density).toInt())
         val view = cardView ?: ComposeView(context).also { v ->
             v.setViewTreeLifecycleOwner(owner)
             v.setViewTreeSavedStateRegistryOwner(owner)
@@ -244,7 +270,7 @@ class OverlayWindows(private val context: Context, private val repo: OverlayRepo
                 DetailCardView(
                     c.card, c.id, sprites,
                     maxWidth = (maxW / density).dp,
-                    maxHeight = (m.heightPixels * 0.85f / density).dp,
+                    maxHeight = (maxH / density).dp,
                 )
             }
         }
