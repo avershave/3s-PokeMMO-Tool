@@ -45,6 +45,9 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import java.io.File
+import com.pokemmo.tool.overlay.data.TagUpdater
 
 /**
  * Foreground service: MediaProjection -> VirtualDisplay -> ImageReader, then every
@@ -146,6 +149,33 @@ class CaptureService : Service() {
         val engine = OcrEngine().also { ocr = it }
         OverlayStateBus.setCapturing(true)
         loop = scope.launch { runLoop(repo, engine) }
+        scope.launch { refreshTags(repo) }
+    }
+
+    /**
+     * One remote tags check per service start, off the main thread. Capture already runs on the
+     * bundled tags; only the overlay reads tags (matcher and parser use areas/pokemon), so the
+     * updated repo is swapped into the overlay on Main. Never throws.
+     */
+    private suspend fun refreshTags(repo: OverlayRepository) {
+        try {
+            val bundled = applicationContext.assets.open("overlay/tags.json")
+                .bufferedReader(Charsets.UTF_8).use { it.readText() }
+            val updater = TagUpdater(
+                OkHttpClient(),
+                TagUpdater.DEFAULT_URL,
+                File(applicationContext.cacheDir, "tags-remote.json"),
+                bundled,
+            )
+            val json = updater.current()
+            if (json == bundled) return
+            val updated = repo.withTags(json)
+            withContext(Dispatchers.Main) { if (!stopping) overlay?.updateRepo(updated) }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "tag update skipped", e)
+        }
     }
 
     private suspend fun runLoop(repo: OverlayRepository, engine: OcrEngine) {
