@@ -163,4 +163,34 @@ class StripModelTest {
             assertFalse("Pokemon $id: $text", lv.containsMatchIn(text))
         }
     }
+
+    @Test
+    fun opponentTagsForAbraShowPvpAndStoryViaAlakazam() {
+        val t = buildOpponentTags(repo, 63)
+        assertEquals(TagKind.PVP, t.outline)
+        assertEquals(listOf(TagKind.PVP, TagKind.STORY, TagKind.UTILITY), t.chips.map { it.kind })
+    }
+
+    @Test
+    fun opponentTagsForUrsaringOutlineStoryWhenPvpTierTooLow() {
+        val t = buildOpponentTags(repo, 217)
+        // Ursaring is RU in PvP (no outline), Story wins; EV never gets a chip.
+        assertEquals(TagKind.STORY, t.outline)
+        assertEquals(listOf(TagKind.PVP, TagKind.STORY, TagKind.UTILITY, TagKind.UTILITY), t.chips.map { it.kind })
+    }
+
+    @Test
+    fun opponentWithOnlyEvHasNoOutlineOrChips() {
+        val r = repo.withTags(tagsJson(1 to "[${tag("ev", "ev", "+1 SpA")},${tag("gtm")}]"))
+        val t = buildOpponentTags(r, 1)
+        assertNull(t.outline)
+        assertTrue(t.chips.isEmpty())
+    }
+
+    @Test
+    fun storyRowsAreTitledStory() {
+        val abra = buildCard(63, repo, null, null).rows.first { it.kind == TagKind.STORY }
+        assertEquals("Story (as Alakazam)", abra.title)
+        assertEquals("Story", buildCard(217, repo, null, null).rows.first { it.kind == TagKind.STORY }.title)
+    }
 }

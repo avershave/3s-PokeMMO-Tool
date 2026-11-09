@@ -42,16 +42,32 @@ data class StripModel(
 
 const val EMPTY_STRIP_TEXT = "No wild Pokémon here"
 
+/** repo.hasOutline decides; the kind mapping only picks the colour (PvP > Story > Utility). */
+fun outlineKind(repo: OverlayRepository, tags: List<com.pokemmo.tool.overlay.data.Tag>): TagKind? =
+    if (repo.hasOutline(tags)) {
+        tags.filter { repo.hasOutline(listOf(it)) }.mapNotNull { TagKind.of(it.kind) }.minOrNull()
+    } else {
+        null
+    }
+
+data class TagChip(val kind: TagKind, val label: String)
+
+/** Value tags for one battle opponent: sprite outline colour plus a chip per PvP/Story/Utility tag. */
+data class OpponentTags(val outline: TagKind?, val chips: List<TagChip>)
+
+fun buildOpponentTags(repo: OverlayRepository, id: Int): OpponentTags {
+    val tags = repo.tags(id)
+    val chips = tags.mapNotNull { t ->
+        val kind = TagKind.of(t.kind)
+        if (kind == null || kind == TagKind.EV) null else TagChip(kind, t.summary)
+    }.sortedBy { it.kind }
+    return OpponentTags(outlineKind(repo, tags), chips)
+}
+
 /** [StripModel.items] holds only the visible items; [StripModel.overflow] counts the hidden rest. */
 fun buildStrip(area: Area, repo: OverlayRepository, maxVisible: Int): StripModel {
     val all = area.spawns.distinctBy { it.id }.map { sp ->
-        val tags = repo.tags(sp.id)
-        // repo.hasOutline decides; the kind mapping only picks the colour (PvP > Story > Utility).
-        val outline = if (repo.hasOutline(tags)) {
-            tags.filter { repo.hasOutline(listOf(it)) }.mapNotNull { TagKind.of(it.kind) }.minOrNull()
-        } else {
-            null
-        }
+        val outline = outlineKind(repo, repo.tags(sp.id))
         StripItem(sp.id, sp.name, outline, dimmed = outline == null)
     }
     val sorted = all.sortedWith(

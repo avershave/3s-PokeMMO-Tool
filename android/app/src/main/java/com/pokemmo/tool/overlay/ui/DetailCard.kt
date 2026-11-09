@@ -84,7 +84,8 @@ private fun CardRowView(row: CardRow, open: Boolean, onToggle: () -> Unit) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             KindChip(row.kind)
-            Text(row.title, color = PanelText, fontSize = 12.sp)
+            Text(row.title, color = PanelText, fontSize = 12.sp, modifier = Modifier.weight(1f, fill = false))
+            Text(if (open) "▾" else "▸", color = PanelMuted, fontSize = 12.sp)
         }
         Text(row.summary, color = PanelMuted, fontSize = 11.sp)
         if (open) {
