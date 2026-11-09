@@ -36,7 +36,8 @@ class RouteMatcher(private val areas: List<Area>) {
 
         if (candidates.isNotEmpty()) return choose(candidates, cleaned, currentRegion)
 
-        if (CHANNEL_MARKER.containsMatchIn(ocrLine)) {
+        // Every real route is in the data, so an unmatched route line is a misread: no synthetic area.
+        if (!isRouteLine && CHANNEL_MARKER.containsMatchIn(ocrLine)) {
             return Area(currentRegion ?: "", cleaned, key, emptyList())
         }
         return null

@@ -95,6 +95,11 @@ class RouteMatcherTest {
     }
 
     @Test
+    fun `unmatched route line with channel marker gives null`() {
+        assertNull(matcher.match("Route 1S · CH 1", "Kanto"))
+    }
+
+    @Test
     fun `unknown place without marker gives null`() {
         assertNull(matcher.match("Pallet Lab", "Kanto"))
     }
