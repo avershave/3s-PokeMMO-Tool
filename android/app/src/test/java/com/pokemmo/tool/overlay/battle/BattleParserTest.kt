@@ -39,6 +39,13 @@ class BattleParserTest {
     }
 
     @Test
+    fun levelLabelIsCaseInsensitiveAndRangeChecked() {
+        val ok = parser.parse(listOf(line("Abra LV. 58"), line("Abra lv 12"), line("Abra NV 100")))
+        assertEquals(listOf(58, 12, 100), ok.map { it.level })
+        assertTrue(parser.parse(listOf(line("Abra Lv. 0"), line("Abra Lv. 101"), line("Abra Lv. 999"))).isEmpty())
+    }
+
+    @Test
     fun ignoresNonBattleText() {
         val r = parser.parse(
             listOf("0/7", "14,158", "LUCHA", "nito que se ve tesela :V").map { line(it) },

@@ -25,7 +25,7 @@ class BattleParser(private val repo: OverlayRepository) {
 
     fun parse(lines: List<OcrLine>): List<Opponent> = lines.mapNotNull { line ->
         val m = LINE_REGEX.find(line.text.trim()) ?: return@mapNotNull null
-        val level = m.groupValues[2].toIntOrNull() ?: return@mapNotNull null
+        val level = m.groupValues[2].toIntOrNull()?.takeIf { it in 1..100 } ?: return@mapNotNull null
         val mon = match(NameKey.of(m.groupValues[1])) ?: return@mapNotNull null
         Opponent(mon, level, line)
     }
@@ -75,7 +75,7 @@ class BattleParser(private val repo: OverlayRepository) {
     }
 
     companion object {
-        private val LINE_REGEX = Regex("""^(.+?)\s+(?:Lv|Nv|Niv|Lvl)\.?\s*(\d{1,3})\b""")
+        private val LINE_REGEX = Regex("""^(.+?)\s+(?i:Lv|Nv|Niv|Lvl)\.?\s*(\d{1,3})\b""")
         private const val MIN_FUZZY_LEN = 5
         private const val MAX_DISTANCE = 2
     }
