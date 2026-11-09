@@ -70,5 +70,11 @@
     "summary": "Reliable sleep for catching",
     "body": "Spore puts the target to sleep and hits reliably. A sleeping wild Pokémon is easier to catch, so Spore pairs well with False Swipe.",
     "more": "Sleep also stops the target from attacking for a few turns. That gives you time to weaken it with False Swipe and throw balls."
+  },
+  "story": {
+    "title": "Story",
+    "summary": "Strong for the story",
+    "body": "A Story pick is a Pokémon that makes the main storyline easier: it is strong against the gym leaders and Elite Four, or it is easy to get early. If you want to breeze through the campaign, this one is worth catching and training.",
+    "more": "Story picks are our own suggestions for a first playthrough, not a competitive ranking. A Pokémon can be great in the story and weak in PvP, so treat this as advice for getting through the game, then decide what is worth keeping for the long run."
   }
 }

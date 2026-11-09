@@ -50,7 +50,7 @@ test('descendants is transitive and cycle-safe', () => {
 test('every utility rule and pvp/ev has an explanation (real content files)', async () => {
   const rules = (await import('../../tags/utility-rules.json')).default;
   const ex = (await import('../../tags/explanations.json')).default;
-  for (const k of [...rules.map(r => r.key), 'pvp.smogon', 'ev']) expect(ex[k]?.summary).toBeTruthy();
+  for (const k of [...rules.map(r => r.key), 'pvp.smogon', 'ev', 'story']) expect(ex[k]?.summary).toBeTruthy();
   for (const v of Object.values(ex)) expect(v.summary.split(/\s+/).length).toBeLessThanOrEqual(5);
 });
 
