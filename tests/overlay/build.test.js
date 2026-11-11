@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DEX_LIST } from '../../src/lib/dex.js';
 import { aliasKey } from '../../src/lib/areas.js';
-import { buildOverlayData } from '../../scripts/overlay/build-overlay-data.mjs';
+import os from 'node:os';
+import { buildOverlayData, copyIcons } from '../../scripts/overlay/build-overlay-data.mjs';
 
 const root = path.resolve(__dirname, '../..');
 const readJson = (p) => JSON.parse(fs.readFileSync(path.join(root, p), 'utf8'));
@@ -100,4 +101,25 @@ test('no base mon evolves into an id above 649 (filtering dex is safe)', () => {
 
 test('deterministic', () => {
   expect(JSON.stringify(buildOverlayData(inputs()))).toBe(JSON.stringify(out));
+});
+
+test('copyIcons copies ROM icons into assets and removes old sprites', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'icons-'));
+  const src = path.join(tmp, 'art/overlay');
+  fs.mkdirSync(path.join(src, 'pokemon'), { recursive: true });
+  fs.mkdirSync(path.join(src, 'items'), { recursive: true });
+  fs.writeFileSync(path.join(src, 'pokemon/1.png'), 'a');
+  fs.writeFileSync(path.join(src, 'pokemon/2.png'), 'b');
+  fs.writeFileSync(path.join(src, 'items/ball-poke.png'), 'c');
+  const assets = path.join(tmp, 'assets');
+  fs.mkdirSync(path.join(assets, 'sprites'), { recursive: true });
+  fs.writeFileSync(path.join(assets, 'sprites/1.webp'), 'old');
+
+  const r = copyIcons(tmp, assets, [1, 2, 3]);
+
+  expect(r).toEqual({ icons: 2, missing: [3] });
+  expect(fs.readFileSync(path.join(assets, 'icons/2.png'), 'utf8')).toBe('b');
+  expect(fs.existsSync(path.join(assets, 'items/ball-poke.png'))).toBe(true);
+  expect(fs.existsSync(path.join(assets, 'sprites'))).toBe(false);
+  fs.rmSync(tmp, { recursive: true, force: true });
 });
