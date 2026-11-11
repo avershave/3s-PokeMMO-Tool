@@ -22,28 +22,44 @@
 1. Open **3s PokeMMO Overlay**.
 2. Tap **Grant overlay permission**, enable "Display over other apps", go back. The overlay item should show a check mark.
 3. Tap **Allow notifications** (Android 13+) and accept.
-4. Tap **Start overlay**. On the consent screen choose **PokeMMO** as the app to share (or the entire screen). Sharing only the PokeMMO window keeps the overlay out of the capture.
+4. Tap **Start overlay**. On the consent screen choose **A single app → PokeMMO**. Sharing only PokeMMO keeps the overlay out of what it reads. (Entire screen also works; see the last checks.)
 5. Open PokeMMO and play.
 6. Tap **Stop overlay** in the app (or the notification) when done.
 
 ## Verify
 
-- [ ] The strip shows the correct route within about 2 s of entering it.
-- [ ] A wild battle swaps to the panel with correct weaknesses and catch rate, and caught matches the in-game ball.
-- [ ] A 5-horde shows "x5", and a mixed horde shows each species with its own count.
-- [ ] Standing still after a battle ends clears the panel and the strip returns.
+The overlay icons come from your own Black ROM (`npm run overlay:icons`, committed under `art/overlay/`).
+
+Drawer (top centre):
+- [ ] The tab hangs from the top edge between the location name and the menu, and never covers either.
+- [ ] On a route with worth-catching Pokémon the tab cycles them (about 1.5 s each) with the party bounce. In a town, or with nothing worth catching, it shows a still Poké Ball.
+- [ ] Tapping the tab opens up to two rows of icons with catch marks under them (grass, wave, rod, cave, sparkle). Faded icons are not worth catching. No lure-only Pokémon appear.
+- [ ] On a route with more than two rows, the last slot reads "+N"; tapping it shows all of them in a scrolling list.
+- [ ] The drawer stays as it is (open or closed) across a route change.
+- [ ] Oreburgh City and Mistralton City show "No wild Pokémon here" when opened, not Oreburgh Gate or Mistralton Cave.
+
+Card:
+- [ ] Tapping an icon opens the card directly under the drawer, with its left and right edges lined up and a small gap.
+- [ ] It shows where to catch it with marks and "Level 30–35" (never "Lv"), and the footer names the location read, e.g. "Vermilion City · Kanto".
+- [ ] Tapping a row expands only that row; tapping the same icon again, closing the drawer or changing route closes the card.
+
+Battle:
+- [ ] A wild battle hides the drawer and shows the panel on the left, below the name boxes and above Fight.
+- [ ] The panel shows icon, name, ball (colour when caught, grey when not), type pills, CATCH, WEAK 4×/2×, and value rows that open inline.
+- [ ] A 5-horde shows "×5" and EV "each · per horde"; a mixed horde stacks one block per species.
+- [ ] After the battle the drawer comes back exactly as it was (open or closed), and any card is closed.
+
+Everything else:
+- [ ] Both landscape orientations (camera on the left and on the right) line up and cover nothing the game needs.
 - [ ] Pressing Start while PokeMMO is already in landscape works.
-- [ ] Both landscape orientations work (camera on the left and on the right): the strip and panel line up with the game and do not cover the route name.
-- [ ] Oreburgh City and Mistralton City show "No wild Pokémon here" with the right name, not Oreburgh Gate or Mistralton Cave.
-- [ ] The panel returns to the strip after the battle.
-- [ ] Nothing covers the route name or the opponent names.
-- [ ] Tapping a sprite opens the card, and tapping a row expands only that row.
-- [ ] Main screen re-checks permissions on return from settings, and Start is disabled until overlay permission is granted.
+- [ ] The **Background panel** switch on the main screen removes and restores the dark panels right away while the overlay runs.
+- [ ] Sharing **Entire screen** with the drawer open: walking into a horde still detects the battle (the drawer hides as soon as a name line is read).
+- [ ] The main screen re-checks permissions on return from settings, and Start is disabled until overlay permission is granted.
 
 ## Screenshot
 
 ```
-adb exec-out screencap -p > shot.png
+android screen capture -o shot.png   # or: adb exec-out screencap -p > shot.png
 ```
 
 ## Tuning if positions are off
