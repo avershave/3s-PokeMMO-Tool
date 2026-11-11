@@ -122,6 +122,28 @@ export function buildOverlayData({ dexList, hordeRegions, catchRates, tagInputs 
   return { pokemon, areas, tags, aliasFixtures: buildAliasFixtures(areas), warnings: built.warnings };
 }
 
+/**
+ * Copies the committed ROM icons (art/overlay, from `npm run overlay:icons`) into the
+ * app assets: pokemon/{id}.png -> icons/, items/*.png -> items/. Removes the old
+ * official-artwork sprites folder. `ids` are the species the app needs.
+ */
+export function copyIcons(root, assetsDir, ids) {
+  const src = path.join(root, 'art/overlay');
+  fs.rmSync(path.join(assetsDir, 'sprites'), { recursive: true, force: true });
+  for (const [from, to] of [['pokemon', 'icons'], ['items', 'items']]) {
+    const dst = path.join(assetsDir, to);
+    fs.rmSync(dst, { recursive: true, force: true });
+    fs.mkdirSync(dst, { recursive: true });
+    const dir = path.join(src, from);
+    if (!fs.existsSync(dir)) continue;
+    for (const f of fs.readdirSync(dir)) {
+      if (f.endsWith('.png')) fs.copyFileSync(path.join(dir, f), path.join(dst, f));
+    }
+  }
+  const missing = ids.filter(id => !fs.existsSync(path.join(assetsDir, 'icons', `${id}.png`)));
+  return { icons: ids.length - missing.length, missing };
+}
+
 async function main() {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
   const readJson = (p) => JSON.parse(fs.readFileSync(path.join(root, p), 'utf8'));
@@ -152,23 +174,12 @@ async function main() {
   writeJson(path.join(root, 'public/data/overlay/tags.json'), out.tags);
   writeJson(path.join(root, 'android/app/src/test/resources/alias-fixtures.json'), out.aliasFixtures);
 
-  const { default: sharp } = await import('sharp');
-  const spriteDir = path.join(assets, 'sprites');
-  fs.rmSync(spriteDir, { recursive: true, force: true });
-  fs.mkdirSync(spriteDir, { recursive: true });
-  let sprites = 0, bytes = 0;
-  for (const p of out.pokemon.pokemon) {
-    const src = path.join(root, 'public/sprites', `${p.id}.png`);
-    if (!fs.existsSync(src)) { out.warnings.push(`missing sprite ${p.id}`); continue; }
-    const dst = path.join(spriteDir, `${p.id}.webp`);
-    await sharp(src).resize(96, 96, { kernel: 'nearest' }).webp({ lossless: true }).toFile(dst);
-    sprites++;
-    bytes += fs.statSync(dst).size;
-  }
+  const icons = copyIcons(root, assets, out.pokemon.pokemon.map(p => p.id));
+  for (const id of icons.missing) out.warnings.push(`missing icon ${id} (run npm run overlay:icons)`);
 
   console.log(`areas: ${out.areas.areas.length}`);
   console.log(`pokemon: ${out.pokemon.pokemon.length}`);
-  console.log(`sprites: ${sprites} (${(bytes / 1048576).toFixed(2)} MB)`);
+  console.log(`icons: ${icons.icons}`);
   console.log(`warnings: ${out.warnings.length}`);
   for (const w of out.warnings) console.log(`  - ${w}`);
 }

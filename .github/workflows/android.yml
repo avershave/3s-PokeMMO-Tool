@@ -11,7 +11,7 @@ on:
       - "UpdatedDex.json"
       - "horderegiondata.json"
       - "data/catch-rates.json"
-      - "public/sprites/**"
+      - "art/overlay/**"
       - "package-lock.json"
       - ".github/workflows/android.yml"
   push:
