@@ -7,4 +7,9 @@ object CaptureGeometry {
 
     /** Regions are fractions of the landscape screen; portrait frames must not be read. */
     fun isLandscape(w: Int, h: Int): Boolean = w >= h
+
+    /** The capture is always landscape-sized: the long side is the width. */
+    fun landscapeWidth(w: Int, h: Int): Int = maxOf(w, h)
+
+    fun landscapeHeight(w: Int, h: Int): Int = minOf(w, h)
 }

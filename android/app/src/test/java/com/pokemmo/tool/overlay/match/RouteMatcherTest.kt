@@ -105,6 +105,17 @@ class RouteMatcherTest {
     }
 
     @Test
+    fun `dropped dot before channel still matches (read on Pixel 9 Pro XL)`() {
+        val a = matcher.match("Vermilion City VILLAGE CH 5", null)
+        assertEquals("Kanto", a!!.region)
+        assertEquals("Vermilion City", a.name)
+
+        val unknown = matcher.match("Pallet Lab INSIDE CH 2", "Kanto")
+        assertEquals("Pallet Lab", unknown!!.name)
+        assertTrue(unknown.spawns.isEmpty())
+    }
+
+    @Test
     fun `misread dot still counts as channel marker`() {
         val a = matcher.match("Pallet Lab INSIDE • CH 2", null)
         assertEquals("Pallet Lab", a!!.name)

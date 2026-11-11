@@ -27,6 +27,8 @@ import android.view.Display
 import com.pokemmo.tool.overlay.battle.BattleParser
 import com.pokemmo.tool.overlay.battle.CaughtDetector
 import com.pokemmo.tool.overlay.battle.OcrLine
+import com.pokemmo.tool.overlay.battle.OpponentGroup
+import com.pokemmo.tool.overlay.data.Area
 import com.pokemmo.tool.overlay.data.OverlayRepository
 import com.pokemmo.tool.overlay.match.RouteMatcher
 import com.pokemmo.tool.overlay.state.OverlayStateBus
@@ -126,9 +128,12 @@ class CaptureService : Service() {
             }
         }, Handler(Looper.getMainLooper()))
 
+        // Always capture at the landscape size, even if started in portrait. Regions are only
+        // read in landscape, and resizing the display on rotation stopped frames arriving
+        // (Pixel 9 Pro XL, Android 16); the mirror scales portrait content to fit instead.
         val metrics = realMetrics()
-        width = metrics.widthPixels
-        height = metrics.heightPixels
+        width = CaptureGeometry.landscapeWidth(metrics.widthPixels, metrics.heightPixels)
+        height = CaptureGeometry.landscapeHeight(metrics.widthPixels, metrics.heightPixels)
         dpi = metrics.densityDpi
 
         val r = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
@@ -195,19 +200,24 @@ class CaptureService : Service() {
         }
     }
 
-    /** Follows rotation: resize the display and swap in a reader of the new size. */
+    /**
+     * Follows a screen resolution change (not rotation: the capture stays landscape-sized):
+     * resize the display and swap in a reader of the new size.
+     */
     private fun syncSize(): Boolean {
         val m = realMetrics()
-        if (!CaptureGeometry.needsResize(width, height, m.widthPixels, m.heightPixels)) return false
+        val w = CaptureGeometry.landscapeWidth(m.widthPixels, m.heightPixels)
+        val h = CaptureGeometry.landscapeHeight(m.widthPixels, m.heightPixels)
+        if (!CaptureGeometry.needsResize(width, height, w, h)) return false
         val vd = display ?: return false
         val old = reader
-        val fresh = ImageReader.newInstance(m.widthPixels, m.heightPixels, PixelFormat.RGBA_8888, 2)
-        vd.resize(m.widthPixels, m.heightPixels, m.densityDpi)
+        val fresh = ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 2)
+        vd.resize(w, h, m.densityDpi)
         vd.surface = fresh.surface
         reader = fresh
         old?.close()
-        width = m.widthPixels
-        height = m.heightPixels
+        width = w
+        height = h
         dpi = m.densityDpi
         return true
     }
@@ -220,57 +230,97 @@ class CaptureService : Service() {
     ) {
         if (syncSize()) {
             skipNextTick = true
+            lastReading = null
             return
         }
         if (skipNextTick) {
             skipNextTick = false
             return
         }
-        // Regions are fractions of the landscape screen; portrait frames are meaningless.
-        if (!CaptureGeometry.isLandscape(width, height)) return
         val r = reader ?: return
-        val frame = r.acquireLatestImage()?.use { toBitmap(it) } ?: return
-        try {
-            val routeRect = ScreenRegions.ROUTE.toPixels(width, height)
-            val battleRect = ScreenRegions.BATTLE.toPixels(width, height)
-            val routeBmp = crop(frame, routeRect)
-            val battleBmp = crop(frame, battleRect)
-            try {
-                val routeLines = engine.read(routeBmp, routeRect.left, routeRect.top)
-                val battleLines = engine.read(battleBmp, battleRect.left, battleRect.top)
-
-                val route = routeLines.firstNotNullOfOrNull { matcher.match(it.text, currentRegion) }
-                val opponents = parser.parse(battleLines)
-                val groups = if (opponents.isEmpty()) {
-                    emptyList()
-                } else {
-                    // Caught detection reads pixels of the battle crop only (cheaper than the
-                    // full frame); line boxes are shifted into crop coordinates.
-                    val pixels = IntArray(battleBmp.width * battleBmp.height)
-                    battleBmp.getPixels(pixels, 0, battleBmp.width, 0, 0, battleBmp.width, battleBmp.height)
-                    parser.group(opponents) { o ->
-                        CaughtDetector.isCaught(
-                            pixels, battleBmp.width, battleBmp.height,
-                            o.box.shifted(-battleRect.left, -battleRect.top),
-                        )
-                    }
-                }
-
-                currentCoroutineContext().ensureActive()
-                val state = machine.onTick(route, groups)
-                when (state) {
-                    is ScreenState.Overworld -> currentRegion = state.area.region
-                    is ScreenState.Battle -> state.area?.let { currentRegion = it.region }
-                    ScreenState.Idle -> Unit
-                }
-                OverlayStateBus.publish(state)
-            } finally {
-                routeBmp.recycle()
-                battleBmp.recycle()
-            }
-        } finally {
-            frame.recycle()
+        // Regions are fractions of the landscape screen; portrait frames are meaningless (the
+        // capture is landscape-sized, so ask the real display which way it is turned).
+        val m = realMetrics()
+        if (!CaptureGeometry.isLandscape(m.widthPixels, m.heightPixels)) {
+            // Drain the queue so the first landscape frame is fresh, and forget the last read.
+            r.acquireLatestImage()?.close()
+            lastReading = null
+            return
         }
+        // The mirror only delivers a frame when the screen changes, and PokeMMO does not redraw
+        // while the player stands still. No new frame means the screen still shows what we last
+        // read, so feed that again: the state machine needs repeated ticks to confirm a route.
+        val reading = r.acquireLatestImage()?.use { toBitmap(it) }
+            ?.let { frame -> try { read(frame, engine, matcher, parser) } finally { frame.recycle() } }
+            ?: lastReading
+            ?: return
+        lastReading = reading
+
+        currentCoroutineContext().ensureActive()
+        val state = machine.onTick(reading.route, reading.groups)
+        when (state) {
+            is ScreenState.Overworld -> currentRegion = state.area.region
+            is ScreenState.Battle -> state.area?.let { currentRegion = it.region }
+            ScreenState.Idle -> Unit
+        }
+        OverlayStateBus.publish(state)
+    }
+
+    /** What one frame showed. */
+    private class Reading(val route: Area?, val groups: List<OpponentGroup>)
+
+    /** Only touched by the tick loop. */
+    private var lastReading: Reading? = null
+
+    private suspend fun read(
+        frame: Bitmap,
+        engine: OcrEngine,
+        matcher: RouteMatcher,
+        parser: BattleParser,
+    ): Reading {
+        val routeRect = ScreenRegions.ROUTE.toPixels(width, height)
+        val battleRect = ScreenRegions.BATTLE.toPixels(width, height)
+        val routeBmp = crop(frame, routeRect)
+        val battleBmp = crop(frame, battleRect)
+        try {
+            val routeLines = engine.read(routeBmp, routeRect.left, routeRect.top)
+            val battleLines = engine.read(battleBmp, battleRect.left, battleRect.top)
+
+            val route = routeLines.firstNotNullOfOrNull { matcher.match(it.text, currentRegion) }
+            debugLog {
+                "frame route=${routeLines.map { it.text }} " +
+                    "match=${route?.let { "${it.region}/${it.name}" }} battle=${battleLines.map { it.text }}"
+            }
+            val opponents = parser.parse(battleLines)
+            val groups = if (opponents.isEmpty()) {
+                emptyList()
+            } else {
+                // Caught detection reads pixels of the battle crop only (cheaper than the
+                // full frame); line boxes are shifted into crop coordinates.
+                val pixels = IntArray(battleBmp.width * battleBmp.height)
+                battleBmp.getPixels(pixels, 0, battleBmp.width, 0, 0, battleBmp.width, battleBmp.height)
+                parser.group(opponents) { o ->
+                    CaughtDetector.isCaught(
+                        pixels, battleBmp.width, battleBmp.height,
+                        o.box.shifted(-battleRect.left, -battleRect.top),
+                    )
+                }
+            }
+            return Reading(route, groups)
+        } finally {
+            routeBmp.recycle()
+            battleBmp.recycle()
+        }
+    }
+
+    // --- Debug builds only: tick log. ---
+
+    private val debuggable by lazy {
+        (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+    }
+
+    private inline fun debugLog(msg: () -> String) {
+        if (debuggable) Log.d(TAG, msg())
     }
 
     private fun OcrLine.shifted(dx: Int, dy: Int) = OcrLine(text, left + dx, top + dy, right + dx, bottom + dy)

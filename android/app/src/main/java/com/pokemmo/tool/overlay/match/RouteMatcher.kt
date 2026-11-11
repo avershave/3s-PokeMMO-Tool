@@ -10,7 +10,9 @@ class RouteMatcher(private val areas: List<Area>) {
         const val FUZZY_THRESHOLD = 0.85
         val GENERIC = listOf("city", "town", "forest", "cave", "road", "gate", "outside", "inside", "entrance", "exit")
         val DOT_CUT = Regex("\\s*[·•]\\s*")
-        val CHANNEL_MARKER = Regex("[·•-]\\s*CH\\s*\\d+", RegexOption.IGNORE_CASE)
+        // OCR sometimes drops the dot entirely ("Vermilion City VILLAGE CH 5"), so a plain space
+        // before a standalone "CH n" counts too.
+        val CHANNEL_MARKER = Regex("(?:[·•-]\\s*|\\s)CH\\s*\\d+(?![A-Za-z0-9])", RegexOption.IGNORE_CASE)
         val ROUTE_NUM = Regex("route\\s*(\\d+)(?![A-Za-z0-9])", RegexOption.IGNORE_CASE)
         val ROUTE_LINE = Regex("^route\\b", RegexOption.IGNORE_CASE)
         val NON_ALNUM = Regex("[^a-z0-9]+")
@@ -52,14 +54,16 @@ class RouteMatcher(private val areas: List<Area>) {
 
     private fun clean(line: String): String {
         var s = DOT_CUT.split(line.trim(), 2).first().trim()
+        // "Pallet Lab INSIDE - CH 2" / "... INSIDE CH 2" (dot misread as hyphen, or dropped).
+        // Cut the channel first so the place-type word (INSIDE, VILLAGE...) is last.
+        s = CHANNEL_MARKER.find(s)?.let { s.substring(0, it.range.first).trim() } ?: s
         val lastSpace = s.lastIndexOf(' ')
         if (lastSpace > 0) {
             val last = s.substring(lastSpace + 1)
             val rest = s.substring(0, lastSpace)
             if (ALL_CAPS.matches(last) && rest.any { it.isLowerCase() }) s = rest.trim()
         }
-        // "Pallet Lab INSIDE - CH 2" style (misread dot as hyphen).
-        return CHANNEL_MARKER.find(s)?.let { s.substring(0, it.range.first).trim() } ?: s
+        return s
     }
 
     /** Whole lowercase words, like desktop tokenizeName. */
