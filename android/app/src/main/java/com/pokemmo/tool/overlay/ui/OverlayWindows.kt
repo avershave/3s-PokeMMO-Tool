@@ -58,7 +58,7 @@ class OverlayLifecycleOwner : LifecycleOwner, SavedStateRegistryOwner {
 }
 
 /**
- * Owns the overlay windows (strip, battle panel, detail card). Created by CaptureService
+ * Owns the overlay windows (route drawer, battle panel, detail card). Created by CaptureService
  * when capture starts and disposed in its shutdown, both on the Main thread.
  */
 class OverlayWindows(private val context: Context, initialRepo: OverlayRepository) {
@@ -83,17 +83,21 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
     private data class OpenCard(val id: Int, val card: Card, val fromBattle: Boolean)
 
     // Compose state read by the hosted views.
-    private var stripModel by mutableStateOf<DrawerModel?>(null)
+    private var drawerModel by mutableStateOf(DrawerModel(emptyList(), emptyList(), true))
+    private var drawerOpen by mutableStateOf(false) // never reset by route or state changes
+    private var drawerShowAll by mutableStateOf(false)
+    private var iconDp by mutableStateOf(28.dp)
+    private var drawerMaxDp by mutableStateOf(400.dp)
+    private var drawerBodyMaxDp by mutableStateOf(300.dp)
     private var groups by mutableStateOf<List<OpponentGroup>>(emptyList())
     private var openCard by mutableStateOf<OpenCard?>(null)
-    private var stripMaxDp by mutableStateOf(400.dp)
     private var panelMaxDp by mutableStateOf(DpSize(150.dp, 300.dp))
 
     private var current: ScreenState = ScreenState.Idle
-    private var stripExpanded = false
+    private var battleSuspected = false
     private var disposed = false
 
-    private var stripView: ComposeView? = null
+    private var drawerView: ComposeView? = null
     private var panelView: ComposeView? = null
     private var cardView: ComposeView? = null
 
@@ -109,10 +113,15 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
     private fun onState(s: ScreenState) = guarded {
         val prev = current
         current = s
-        if (areaOf(prev) != areaOf(s) || prev::class != s::class) {
-            stripExpanded = false
-            closeCard()
-        }
+        if (areaOf(prev) != areaOf(s)) drawerShowAll = false
+        // A route change or a confirmed battle closes the card; the drawer stays as it was.
+        if (areaOf(prev) != areaOf(s) || prev::class != s::class) closeCard()
+        render()
+    }
+
+    private fun onSuspected(v: Boolean) = guarded {
+        if (battleSuspected == v) return@guarded
+        battleSuspected = v
         render()
     }
 
@@ -177,17 +186,18 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
     private val added = HashSet<View>()
 
     // Measured widths of the centred windows; used to compute x ourselves (see centredX).
-    private var stripWidthPx = 0
+    private var drawerWidthPx = 0
     private var cardWidthPx = 0
 
     // Keep this init block AFTER every field above. The collector runs on Dispatchers.Main.immediate,
     // so while the object is still being constructed on Main it renders the current Idle state
     // straight away. Fields declared below this block are still null then, which throws an NPE
-    // (swallowed by guarded), and StateFlow never re-emits an equal Idle value, so the strip would
+    // (swallowed by guarded), and StateFlow never re-emits an equal Idle value, so the drawer would
     // never appear at start-up.
     init {
         context.registerComponentCallbacks(callbacks)
         scope.launch { OverlayStateBus.state.collect { onState(it) } }
+        scope.launch { OverlayStateBus.battleSuspected.collect { onSuspected(it) } }
     }
 
     private fun show(view: View?, params: WindowManager.LayoutParams) {
@@ -232,40 +242,48 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
         val density = m.density
         val s = current
 
-        // Strip: Idle and Overworld.
-        if (s is ScreenState.Battle) {
-            hide(stripView)
-        } else {
+        val vis = visibility(s, battleSuspected, drawerOpen, openCard != null)
+
+        // Route drawer: top centre, hanging from the top edge.
+        if (vis.drawer) {
             val rect = ScreenRegions.DRAWER_AREA.toPixels(m.widthPixels, m.heightPixels)
-            val spritePx = (SPRITE_DP * density).toInt()
-            val titleReserve = (TITLE_RESERVE_DP * density).toInt()
-            val maxVisible = ((rect.width - titleReserve) / (spritePx + 4 * density)).toInt().coerceAtLeast(1)
-            stripModel = buildDrawer((s as? ScreenState.Overworld)?.area, repo)
-            stripMaxDp = (rect.width / density).dp
-            val view = stripView ?: newView {
-                StripView(
-                    model = stripModel,
+            iconDp = (iconSizePx(m.widthPixels, m.heightPixels) / density).dp
+            drawerMaxDp = (rect.width / density).dp
+            drawerBodyMaxDp = (rect.height / density).dp - iconDp
+            drawerModel = buildDrawer((s as? ScreenState.Overworld)?.area, repo)
+            val view = drawerView ?: newView {
+                DrawerView(
+                    model = drawerModel,
+                    open = drawerOpen,
+                    selectedId = openCard?.id,
+                    panel = true,
                     icons = icons,
-                    spriteSize = SPRITE_DP.dp,
-                    maxWidth = stripMaxDp,
-                    onItem = { onStripItem(it.id) },
+                    iconSize = iconDp,
+                    maxWidth = drawerMaxDp,
+                    showAll = drawerShowAll,
+                    maxBodyHeight = drawerBodyMaxDp,
+                    onTab = { onTab() },
+                    onItem = { onDrawerItem(it) },
                     onOverflow = {
-                        stripExpanded = true
+                        drawerShowAll = true
+                        closeCard()
                         render()
                     },
                 )
             }.also {
-                stripView = it
-                watchWidth(it) { w -> stripWidthPx.also { stripWidthPx = w } }
+                drawerView = it
+                watchWidth(it) { w -> drawerWidthPx.also { drawerWidthPx = w } }
             }
             val p = baseParams(0, WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT)
-            p.x = centredX((rect.left + rect.right) / 2, stripWidthPx)
-            p.y = rect.top
+            p.x = centredX((rect.left + rect.right) / 2, drawerWidthPx)
+            p.y = 0
             show(view, p)
+        } else {
+            hide(drawerView)
         }
 
         // Battle panel.
-        if (s is ScreenState.Battle && s.groups.isNotEmpty()) {
+        if (vis.panel && s is ScreenState.Battle && s.groups.isNotEmpty()) {
             groups = s.groups
             val rect = ScreenRegions.BATTLE_PANEL.toPixels(m.widthPixels, m.heightPixels)
             panelMaxDp = DpSize((rect.width / density).dp, (rect.height / density).dp)
@@ -287,7 +305,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
             hide(panelView)
         }
 
-        renderCard(m)
+        if (vis.card) renderCard(m) else hide(cardView)
     }
 
     private fun renderCard(m: DisplayMetrics) {
@@ -336,7 +354,21 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
         show(view, p)
     }
 
-    private fun onStripItem(id: Int) {
+    private fun onTab() {
+        drawerOpen = !drawerOpen
+        if (!drawerOpen) {
+            drawerShowAll = false
+            closeCard()
+        }
+        render()
+    }
+
+    private fun onDrawerItem(id: Int) {
+        if (openCard?.id == id) {
+            closeCard()
+            render()
+            return
+        }
         val area = (current as? ScreenState.Overworld)?.area ?: return
         val spawn = area.spawns.firstOrNull { it.id == id }
         val horde = spawn?.encounters?.mapNotNull { it.hordeSize }?.maxOrNull()
@@ -360,13 +392,9 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
         disposed = true
         scope.cancel()
         context.unregisterComponentCallbacks(callbacks)
-        hide(cardView); hide(panelView); hide(stripView)
-        cardView = null; panelView = null; stripView = null
+        hide(cardView); hide(panelView); hide(drawerView)
+        cardView = null; panelView = null; drawerView = null
         owner.stop()
     }
 
-    companion object {
-        private const val SPRITE_DP = 28
-        private const val TITLE_RESERVE_DP = 110
-    }
 }
