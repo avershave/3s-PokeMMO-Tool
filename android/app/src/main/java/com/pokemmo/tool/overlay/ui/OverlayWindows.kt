@@ -78,7 +78,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
         SupervisorJob() + Dispatchers.Main.immediate +
             kotlinx.coroutines.CoroutineExceptionHandler { _, e -> Log.e("OverlayWindows", "overlay scope failed", e) },
     )
-    private val sprites = SpriteCache(context)
+    private val icons = IconCache(context)
 
     private data class OpenCard(val id: Int, val card: Card, val fromBattle: Boolean)
 
@@ -245,7 +245,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
             val view = stripView ?: newView {
                 StripView(
                     model = stripModel,
-                    sprites = sprites,
+                    icons = icons,
                     spriteSize = SPRITE_DP.dp,
                     maxWidth = stripMaxDp,
                     onItem = { onStripItem(it.id) },
@@ -273,7 +273,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
                 BattlePanelView(
                     groups = groups,
                     repo = repo,
-                    sprites = sprites,
+                    icons = icons,
                     maxWidth = panelMaxDp.width,
                     maxHeight = panelMaxDp.height,
                     onGroup = { g -> onBattleGroup(g) },
@@ -316,7 +316,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
             val c = openCard
             if (c != null) {
                 DetailCardView(
-                    c.card, c.id, sprites,
+                    c.card, c.id, icons,
                     maxWidth = (maxW / density).dp,
                     maxHeight = (maxH / density).dp,
                 )

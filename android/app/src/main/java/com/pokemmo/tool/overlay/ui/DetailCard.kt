@@ -25,13 +25,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-fun TagKind.label() = when (this) {
-    TagKind.PVP -> "PvP"
-    TagKind.STORY -> "Story"
-    TagKind.UTILITY -> "Utility"
-    TagKind.EV -> "EV"
-}
-
 @Composable
 fun KindChip(kind: TagKind) {
     Text(
@@ -39,14 +32,14 @@ fun KindChip(kind: TagKind) {
         color = Color.White,
         fontSize = 10.sp,
         modifier = Modifier
-            .background(kind.color(), RoundedCornerShape(4.dp))
+            .background(kind.labelColor(), RoundedCornerShape(4.dp))
             .padding(horizontal = 5.dp, vertical = 1.dp),
     )
 }
 
 /** Detail card. Rows start collapsed; tapping one expands only that row. */
 @Composable
-fun DetailCardView(card: Card, id: Int, sprites: SpriteCache, maxWidth: Dp, maxHeight: Dp) {
+fun DetailCardView(card: Card, id: Int, icons: IconCache, maxWidth: Dp, maxHeight: Dp) {
     var expanded by remember(card) { mutableStateOf<Int?>(null) }
     Column(
         Modifier
@@ -58,7 +51,7 @@ fun DetailCardView(card: Card, id: Int, sprites: SpriteCache, maxWidth: Dp, maxH
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Sprite(sprites, id, 40.dp)
+            PixelIcon(icons, id, 40.dp)
             Column {
                 Text(card.name, color = PanelText, fontSize = 15.sp)
                 if (card.types.isNotEmpty()) Text(card.types.joinToString(" · "), color = PanelMuted, fontSize = 11.sp)
