@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -49,6 +48,11 @@ fun iconSizePx(w: Int, h: Int): Int {
     if (raw < ART_PX) return raw.toInt()
     return (raw / ART_PX).roundToInt().coerceAtLeast(1) * ART_PX
 }
+
+/** Catch marks are 8x8 art; a quarter of the icon keeps them at a whole scale (16 px under 64). */
+fun markSizePx(iconPx: Int): Int = maxOf(1, iconPx / 4)
+
+const val MARK_GAP_PX = 2
 
 fun slotsPerRow(widthPx: Int, slotPx: Int): Int = maxOf(1, widthPx / maxOf(1, slotPx))
 
@@ -161,8 +165,9 @@ private fun DrawerBody(
     val perRow = with(density) { slotsPerRow((maxWidth - pad * 2).roundToPx(), (iconSize + gap).roundToPx()) }
     val slots = drawerSlots(model.items.size, perRow, showAll)
     Box(
+        // Always the full drawer width, so the card below can line up with it on every route.
         Modifier
-            .widthIn(max = maxWidth)
+            .width(maxWidth)
             .then(if (showAll) Modifier.heightIn(max = maxBodyHeight) else Modifier)
             .panelBg(panel, hanging(iconSize * 0.3f))
             .then(if (showAll) Modifier.verticalScroll(rememberScrollState()) else Modifier)
@@ -186,7 +191,9 @@ private fun DrawerBody(
 
 @Composable
 private fun DrawerSlot(item: DrawerItem, selected: Boolean, icons: IconCache, iconSize: Dp, onClick: () -> Unit) {
-    val markSize = iconSize * 0.34f
+    val density = LocalDensity.current
+    val markSize = with(density) { markSizePx(iconSize.roundToPx()).toDp() }
+    val markGap = with(density) { MARK_GAP_PX.toDp() }
     val pull = iconSize * 0.08f
     Column(
         Modifier
@@ -205,7 +212,7 @@ private fun DrawerSlot(item: DrawerItem, selected: Boolean, icons: IconCache, ic
                     layout(p.width, (p.height - up).coerceAtLeast(0)) { p.place(0, -up) }
                 }
                 .padding(bottom = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(1.dp),
+            horizontalArrangement = Arrangement.spacedBy(markGap),
         ) {
             item.marks.forEach { CatchMarkIcon(it, markSize, faded = !item.worth) }
         }

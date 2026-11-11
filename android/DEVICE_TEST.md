@@ -42,6 +42,8 @@ Card:
 - [ ] Tapping an icon opens the card directly under the drawer, with its left and right edges lined up and a small gap.
 - [ ] It shows where to catch it with marks and "Level 30–35" (never "Lv"), and the footer names the location read, e.g. "Vermilion City · Kanto".
 - [ ] Tapping a row expands only that row; tapping the same icon again, closing the drawer or changing route closes the card.
+- [ ] In a cave with only one or two Pokémon (e.g. Rusturf Tunnel), the open drawer and the card are still full width and readable.
+- [ ] After "+N" on a big route (e.g. Cerulean City), tapping an icon opens a card with enough room to read it.
 
 Battle:
 - [ ] A wild battle hides the drawer and shows the panel on the left, below the name boxes and above Fight.

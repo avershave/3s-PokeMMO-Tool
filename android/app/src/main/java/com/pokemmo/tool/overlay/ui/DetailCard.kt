@@ -36,10 +36,13 @@ import com.pokemmo.tool.overlay.capture.IntRect
 /** Where the card window goes, in px: under the drawer window, same x and width. */
 data class CardPlacement(val x: Int, val y: Int, val width: Int, val maxHeight: Int)
 
-/** [drawer] is the drawer window's rect; the card may reach down to [areaBottom] (DRAWER_AREA). */
-fun cardPlacement(drawer: IntRect, screenH: Int, areaBottom: Int): CardPlacement {
-    val y = drawer.bottom + (0.005f * screenH).toInt()
-    return CardPlacement(drawer.left, y, drawer.width, (areaBottom - y).coerceAtLeast(0))
+/**
+ * The card spans [area] (DRAWER_AREA, which the open drawer also spans, so their edges line up)
+ * and starts just below the drawer window's bottom; it may reach down to [maxBottom].
+ */
+fun cardPlacement(drawerBottom: Int, area: IntRect, screenH: Int, maxBottom: Int): CardPlacement {
+    val y = drawerBottom + (0.005f * screenH).toInt()
+    return CardPlacement(area.left, y, area.width, (maxBottom - y).coerceAtLeast(0))
 }
 
 private val LABEL_WIDTH = 34.dp
