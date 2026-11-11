@@ -2,13 +2,16 @@ package com.pokemmo.tool.overlay.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -20,81 +23,147 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pokemmo.tool.overlay.capture.IntRect
 
-@Composable
-fun KindChip(kind: TagKind) {
-    Text(
-        kind.label(),
-        color = Color.White,
-        fontSize = 10.sp,
-        modifier = Modifier
-            .background(kind.labelColor(), RoundedCornerShape(4.dp))
-            .padding(horizontal = 5.dp, vertical = 1.dp),
-    )
+/** Where the card window goes, in px: under the drawer window, same x and width. */
+data class CardPlacement(val x: Int, val y: Int, val width: Int, val maxHeight: Int)
+
+/** [drawer] is the drawer window's rect; the card may reach down to [areaBottom] (DRAWER_AREA). */
+fun cardPlacement(drawer: IntRect, screenH: Int, areaBottom: Int): CardPlacement {
+    val y = drawer.bottom + (0.005f * screenH).toInt()
+    return CardPlacement(drawer.left, y, drawer.width, (areaBottom - y).coerceAtLeast(0))
 }
 
-/** Detail card. Rows start collapsed; tapping one expands only that row. */
+private val LABEL_WIDTH = 34.dp
+
+/**
+ * The card under the drawer: icon, name and types; where to catch it; the tip; value rows that open
+ * one at a time ([expandedRow] is hoisted so it survives the window being hidden); the footer naming
+ * the location that was read. No borders, no boxes, and never "Lv" text.
+ */
 @Composable
-fun DetailCardView(card: Card, id: Int, icons: IconCache, maxWidth: Dp, maxHeight: Dp) {
-    var expanded by remember(card) { mutableStateOf<Int?>(null) }
+fun DetailCardView(
+    card: Card,
+    id: Int,
+    icons: IconCache,
+    panel: Boolean,
+    width: Dp,
+    maxHeight: Dp,
+    iconSize: Dp,
+    expandedRow: Int?,
+    onRow: (Int) -> Unit,
+) {
     Column(
         Modifier
-            .widthIn(max = maxWidth)
+            .width(width)
             .heightIn(max = maxHeight)
-            .background(PanelBg, RoundedCornerShape(10.dp))
+            .then(if (panel) Modifier.background(PanelBg, RoundedCornerShape(iconSize * 0.4f)) else Modifier)
             .verticalScroll(rememberScrollState())
-            .padding(10.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+            .padding(horizontal = 10.dp, vertical = 7.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PixelIcon(icons, id, 40.dp)
-            Column {
-                Text(card.name, color = PanelText, fontSize = 15.sp)
-                if (card.types.isNotEmpty()) Text(card.types.joinToString(" · "), color = PanelMuted, fontSize = 11.sp)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            PixelIcon(icons, id, iconSize * 1.3f)
+            Text(card.name, color = PanelText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            card.types.forEach { TypePill(it, fontSize = 8.sp) }
+        }
+        if (card.where.isNotEmpty()) {
+            Column(Modifier.padding(top = 4.dp, bottom = 3.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                card.where.forEach { w ->
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        CatchMarkIcon(w.mark, 10.dp)
+                        Text(w.text, color = PanelMuted, fontSize = 10.sp)
+                    }
+                }
             }
         }
-        card.tip?.let { Text(it, color = PanelMuted, fontSize = 11.sp) }
-        card.rows.forEachIndexed { i, row ->
-            CardRowView(row, open = expanded == i, onToggle = { expanded = if (expanded == i) null else i })
+        card.tip?.let { Text(it, color = PanelMuted, fontSize = 9.5.sp, modifier = Modifier.padding(bottom = 3.dp)) }
+        if (card.rows.isNotEmpty()) {
+            Divider()
+            card.rows.forEachIndexed { i, row ->
+                if (i > 0) Divider(faint = true)
+                ValueRow(row, open = expandedRow == i, onToggle = { onRow(i) })
+            }
+        }
+        card.footer?.let {
+            Text(
+                it, color = PanelGrey, fontSize = 8.sp, textAlign = TextAlign.End,
+                modifier = Modifier.fillMaxWidth().padding(top = 3.dp),
+            )
         }
     }
 }
 
 @Composable
-private fun CardRowView(row: CardRow, open: Boolean, onToggle: () -> Unit) {
-    var showMore by remember(row) { mutableStateOf(false) }
-    Column(
+private fun Divider(faint: Boolean = false) {
+    Box(
         Modifier
             .fillMaxWidth()
-            .background(Color(0x22FFFFFF), RoundedCornerShape(6.dp))
-            .clickable { onToggle() }
-            .padding(6.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            KindChip(row.kind)
-            Text(row.via?.let { "as $it" }.orEmpty(), color = PanelText, fontSize = 12.sp, modifier = Modifier.weight(1f, fill = false))
-            Text(if (open) "▾" else "▸", color = PanelMuted, fontSize = 12.sp)
+            .height(1.dp)
+            .background(if (faint) PanelDivider.copy(alpha = 0.08f) else PanelDivider),
+    )
+}
+
+/** One value row: coloured label, summary, "as X" in grey, ▸/▾; the explanation opens below. */
+@Composable
+fun ValueRow(row: CardRow, open: Boolean, onToggle: () -> Unit, fontSize: Float = 10f) {
+    var showMore by remember(row) { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(remember { MutableInteractionSource() }, indication = null) { onToggle() }
+                .padding(vertical = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                row.kind.label().uppercase(),
+                color = row.kind.labelColor(),
+                fontSize = (fontSize * 0.82f).sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.5.sp,
+                modifier = Modifier.width(LABEL_WIDTH),
+            )
+            Text(
+                buildAnnotatedString {
+                    append(row.summary)
+                    row.via?.let { withStyle(SpanStyle(color = PanelGrey)) { append("  as $it") } }
+                },
+                color = PanelText,
+                fontSize = fontSize.sp,
+                modifier = Modifier.weight(1f),
+            )
+            Text(if (open) "▾" else "▸", color = PanelGrey, fontSize = (fontSize * 1.3f).sp)
         }
-        Text(row.summary, color = PanelMuted, fontSize = 11.sp)
         if (open) {
-            Text(row.body, color = PanelText, fontSize = 11.sp)
-            if (row.more != null) {
-                if (showMore) {
-                    Text(row.more, color = PanelText, fontSize = 11.sp)
-                } else {
-                    Text(
-                        "More about ${row.kind.label()} ▸",
-                        color = Color(0xFF7FB2FF),
-                        fontSize = 11.sp,
-                        modifier = Modifier.clickable { showMore = true },
-                    )
+            Column(
+                Modifier.padding(start = LABEL_WIDTH + 6.dp, bottom = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                if (row.body.isNotEmpty()) Text(row.body, color = PanelMuted, fontSize = (fontSize * 0.9f).sp, lineHeight = (fontSize * 1.3f).sp)
+                row.more?.let { more ->
+                    if (showMore) {
+                        Text(more, color = PanelMuted, fontSize = (fontSize * 0.9f).sp, lineHeight = (fontSize * 1.3f).sp)
+                    } else {
+                        Text(
+                            "More about ${row.kind.label()} ▸",
+                            color = Story,
+                            fontSize = (fontSize * 0.85f).sp,
+                            modifier = Modifier.clickable { showMore = true },
+                        )
+                    }
                 }
             }
         }
     }
 }
+
+private val Story get() = TagKind.STORY.labelColor()
