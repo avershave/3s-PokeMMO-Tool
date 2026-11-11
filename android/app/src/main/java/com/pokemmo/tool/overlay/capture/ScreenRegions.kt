@@ -30,6 +30,12 @@ object ScreenRegions {
     val DRAWER_AREA = FRect(0.28f, 0.00f, 0.72f, 0.42f)
     val BATTLE_PANEL = FRect(0.01f, 0.29f, 0.205f, 0.71f)
 
+    /**
+     * The lowest the card may reach, as a fraction of the height. The card is only open in the
+     * overworld, where only ROUTE must stay clear, so it may run well below DRAWER_AREA.
+     */
+    const val CARD_MAX_BOTTOM = 0.9f
+
     /** Pokémon icon edge as a fraction of the screen's long side (about 56 px on 2244 px). */
     const val ICON_FRACTION = 0.025f
 }

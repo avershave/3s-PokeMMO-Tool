@@ -187,7 +187,6 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
     // Measured widths of the centred windows; used to compute x ourselves (see centredX).
     private var drawerWidthPx = 0
     private var drawerHeightPx = 0
-    private var drawerX = 0
 
     // Keep this init block AFTER every field above. The collector runs on Dispatchers.Main.immediate,
     // so while the object is still being constructed on Main it renders the current Idle state
@@ -286,7 +285,6 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
             val p = baseParams(0, WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT)
             p.x = centredX((rect.left + rect.right) / 2, drawerWidthPx)
             p.y = 0
-            drawerX = p.x
             show(view, p)
         } else {
             hide(drawerView)
@@ -332,8 +330,10 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
         val density = m.density
         val area = ScreenRegions.DRAWER_AREA.toPixels(m.widthPixels, m.heightPixels)
         val place = cardPlacement(
-            com.pokemmo.tool.overlay.capture.IntRect(drawerX, 0, drawerX + drawerWidthPx, drawerHeightPx),
-            m.heightPixels, area.bottom,
+            drawerBottom = drawerHeightPx,
+            area = area,
+            screenH = m.heightPixels,
+            maxBottom = (ScreenRegions.CARD_MAX_BOTTOM * m.heightPixels).toInt(),
         )
         cardWidthDp = (place.width / density).dp
         cardMaxHeightDp = (place.maxHeight / density).dp

@@ -1,6 +1,7 @@
 package com.pokemmo.tool.overlay.ui
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DrawerLayoutTest {
@@ -15,6 +16,16 @@ class DrawerLayoutTest {
         assertEquals(96, iconSizePx(4000, 2000))
         // Small screen: below one whole scale, keep it exact.
         assertEquals(25, iconSizePx(1000, 500))
+    }
+
+    @Test
+    fun `three marks fit under one icon at a whole pixel scale`() {
+        for (icon in listOf(25, 32, 64, 96)) {
+            val mark = markSizePx(icon)
+            val gap = MARK_GAP_PX
+            assertTrue("icon $icon: 3 marks of $mark + gaps", 3 * mark + 2 * gap <= icon)
+        }
+        assertEquals(16, markSizePx(64)) // 8x8 art at exactly 2x
     }
 
     @Test
