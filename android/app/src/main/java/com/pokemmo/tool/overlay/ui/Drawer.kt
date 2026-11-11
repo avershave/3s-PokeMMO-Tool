@@ -102,11 +102,13 @@ fun DrawerView(
     onItem: (Int) -> Unit,
     onOverflow: () -> Unit,
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        if (open) {
-            DrawerBody(model, selectedId, panel, icons, iconSize, maxWidth, showAll, maxBodyHeight, onItem, onOverflow)
+    PanelStyle(panel) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (open) {
+                DrawerBody(model, selectedId, panel, icons, iconSize, maxWidth, showAll, maxBodyHeight, onItem, onOverflow)
+            }
+            DrawerTab(model, open, panel, icons, iconSize, onTab)
         }
-        DrawerTab(model, open, panel, icons, iconSize, onTab)
     }
 }
 

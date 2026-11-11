@@ -35,7 +35,7 @@ internal val SLOWPOKE_PREVIEW = Card(
 )
 
 @Composable
-private fun CardFrame(expanded: Int?) {
+private fun CardFrame(expanded: Int?, panel: Boolean = true) {
     val ctx = LocalContext.current
     val icons = remember { IconCache(ctx) }
     Column(
@@ -43,8 +43,8 @@ private fun CardFrame(expanded: Int?) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        DrawerView(ROUTE6_PREVIEW, true, 79, true, icons, 28.dp, 438.dp, false, 160.dp, {}, {}, {})
-        DetailCardView(SLOWPOKE_PREVIEW, 79, icons, true, 438.dp, 260.dp, 28.dp, expanded, {})
+        DrawerView(ROUTE6_PREVIEW, true, 79, panel, icons, 28.dp, 438.dp, false, 160.dp, {}, {}, {})
+        DetailCardView(SLOWPOKE_PREVIEW, 79, icons, panel, 438.dp, 260.dp, 28.dp, expanded, {})
     }
 }
 
@@ -55,3 +55,7 @@ fun CardCollapsedPreview() = CardFrame(null)
 @Preview(widthDp = 997, heightDp = 448)
 @Composable
 fun CardStoryOpenPreview() = CardFrame(1)
+
+@Preview(widthDp = 997, heightDp = 448)
+@Composable
+fun CardNoPanelPreview() = CardFrame(null, panel = false)

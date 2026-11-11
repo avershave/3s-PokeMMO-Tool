@@ -150,6 +150,7 @@ class CaptureService : Service() {
         )
 
         val repo = OverlayRepository.fromAssets(applicationContext)
+        com.pokemmo.tool.overlay.OverlaySettings.ensureInit(this)
         overlay = OverlayWindows(this, repo)
         val engine = OcrEngine().also { ocr = it }
         OverlayStateBus.setCapturing(true)

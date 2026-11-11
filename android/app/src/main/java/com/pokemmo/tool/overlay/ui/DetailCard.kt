@@ -61,42 +61,44 @@ fun DetailCardView(
     expandedRow: Int?,
     onRow: (Int) -> Unit,
 ) {
-    Column(
-        Modifier
-            .width(width)
-            .heightIn(max = maxHeight)
-            .then(if (panel) Modifier.background(PanelBg, RoundedCornerShape(iconSize * 0.4f)) else Modifier)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 10.dp, vertical = 7.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            PixelIcon(icons, id, iconSize * 1.3f)
-            Text(card.name, color = PanelText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            card.types.forEach { TypePill(it, fontSize = 8.sp) }
-        }
-        if (card.where.isNotEmpty()) {
-            Column(Modifier.padding(top = 4.dp, bottom = 3.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                card.where.forEach { w ->
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        CatchMarkIcon(w.mark, 10.dp)
-                        Text(w.text, color = PanelMuted, fontSize = 10.sp)
+    PanelStyle(panel) {
+        Column(
+            Modifier
+                .width(width)
+                .heightIn(max = maxHeight)
+                .then(if (panel) Modifier.background(PanelBg, RoundedCornerShape(iconSize * 0.4f)) else Modifier)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 10.dp, vertical = 7.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                PixelIcon(icons, id, iconSize * 1.3f)
+                Text(card.name, color = PanelText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                card.types.forEach { TypePill(it, fontSize = 8.sp) }
+            }
+            if (card.where.isNotEmpty()) {
+                Column(Modifier.padding(top = 4.dp, bottom = 3.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    card.where.forEach { w ->
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                            CatchMarkIcon(w.mark, 10.dp)
+                            Text(w.text, color = PanelMuted, fontSize = 10.sp)
+                        }
                     }
                 }
             }
-        }
-        card.tip?.let { Text(it, color = PanelMuted, fontSize = 9.5.sp, modifier = Modifier.padding(bottom = 3.dp)) }
-        if (card.rows.isNotEmpty()) {
-            Divider()
-            card.rows.forEachIndexed { i, row ->
-                if (i > 0) Divider(faint = true)
-                ValueRow(row, open = expandedRow == i, onToggle = { onRow(i) })
+            card.tip?.let { Text(it, color = PanelMuted, fontSize = 9.5.sp, modifier = Modifier.padding(bottom = 3.dp)) }
+            if (card.rows.isNotEmpty()) {
+                Divider()
+                card.rows.forEachIndexed { i, row ->
+                    if (i > 0) Divider(faint = true)
+                    ValueRow(row, open = expandedRow == i, onToggle = { onRow(i) })
+                }
             }
-        }
-        card.footer?.let {
-            Text(
-                it, color = PanelGrey, fontSize = 8.sp, textAlign = TextAlign.End,
-                modifier = Modifier.fillMaxWidth().padding(top = 3.dp),
-            )
+            card.footer?.let {
+                Text(
+                    it, color = PanelGrey, fontSize = 8.sp, textAlign = TextAlign.End,
+                    modifier = Modifier.fillMaxWidth().padding(top = 3.dp),
+                )
+            }
         }
     }
 }
