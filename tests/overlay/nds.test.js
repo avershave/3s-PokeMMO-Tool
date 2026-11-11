@@ -56,4 +56,21 @@ describe('nds reader', () => {
     expect(table.every(v => v === 0 || v === 1 || v === 2)).toBe(true);
     expect(table.slice(1, 13)).toEqual([1, 1, 1, 0, 0, 0, 0, 2, 2, 1, 1, 0]);
   });
+
+  it('has Unova palette indices, not just the default', () => {
+    const table = JSON.parse(fs.readFileSync(path.join(root, 'scripts/overlay/icon-palettes.json'), 'utf8'));
+    expect(table.slice(494).some(v => v !== 0)).toBe(true);
+  });
+
+  it('has a committed 32x64 icon for every species', async () => {
+    const { default: sharp } = await import('sharp');
+    const bad = [];
+    for (let id = 1; id <= 649; id++) {
+      const file = path.join(root, 'art/overlay/pokemon', `${id}.png`);
+      if (!fs.existsSync(file)) { bad.push(id); continue; }
+      const m = await sharp(file).metadata();
+      if (m.width !== 32 || m.height !== 64) bad.push(id);
+    }
+    expect(bad).toEqual([]);
+  });
 });
