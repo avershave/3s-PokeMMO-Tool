@@ -10,7 +10,6 @@ import android.util.DisplayMetrics
 import android.util.Log
 import android.view.Display
 import android.view.Gravity
-import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import androidx.compose.runtime.getValue
@@ -80,7 +79,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
     )
     private val icons = IconCache(context)
 
-    private data class OpenCard(val id: Int, val card: Card, val fromBattle: Boolean)
+    private data class OpenCard(val id: Int, val card: Card)
 
     // Compose state read by the hosted views.
     private var drawerModel by mutableStateOf(DrawerModel(emptyList(), emptyList(), true))
@@ -90,7 +89,11 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
     private var drawerMaxDp by mutableStateOf(400.dp)
     private var drawerBodyMaxDp by mutableStateOf(300.dp)
     private var groups by mutableStateOf<List<OpponentGroup>>(emptyList())
+    // Kept here, not in remember, so the card comes back unchanged after a suspected battle hides it.
     private var openCard by mutableStateOf<OpenCard?>(null)
+    private var cardRow by mutableStateOf<Int?>(null)
+    private var cardWidthDp by mutableStateOf(400.dp)
+    private var cardMaxHeightDp by mutableStateOf(300.dp)
     private var panelMaxDp by mutableStateOf(DpSize(150.dp, 300.dp))
 
     private var current: ScreenState = ScreenState.Idle
@@ -167,14 +170,6 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
     /** Left edge that centres a window of [widthPx] on [centre]; never off the left of the screen. */
     private fun centredX(centre: Int, widthPx: Int) = (centre - widthPx / 2).coerceAtLeast(0)
 
-    /** Re-renders when a centred window's measured width changes, so x can be recomputed. */
-    private fun watchWidth(view: View, set: (Int) -> Int) {
-        view.addOnLayoutChangeListener { _, l, _, r, _, _, _, _, _ ->
-            val w = r - l
-            if (w > 0 && set(w) != w) render()
-        }
-    }
-
     private fun newView(content: @androidx.compose.runtime.Composable () -> Unit): ComposeView =
         ComposeView(context).also {
             it.setViewTreeLifecycleOwner(owner)
@@ -187,7 +182,8 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
 
     // Measured widths of the centred windows; used to compute x ourselves (see centredX).
     private var drawerWidthPx = 0
-    private var cardWidthPx = 0
+    private var drawerHeightPx = 0
+    private var drawerX = 0
 
     // Keep this init block AFTER every field above. The collector runs on Dispatchers.Main.immediate,
     // so while the object is still being constructed on Main it renders the current Idle state
@@ -272,11 +268,20 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
                 )
             }.also {
                 drawerView = it
-                watchWidth(it) { w -> drawerWidthPx.also { drawerWidthPx = w } }
+                it.addOnLayoutChangeListener { _, l, t, r, b, _, _, _, _ ->
+                    val w = r - l
+                    val h = b - t
+                    if (w > 0 && (w != drawerWidthPx || h != drawerHeightPx)) {
+                        drawerWidthPx = w
+                        drawerHeightPx = h
+                        render()
+                    }
+                }
             }
             val p = baseParams(0, WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT)
             p.x = centredX((rect.left + rect.right) / 2, drawerWidthPx)
             p.y = 0
+            drawerX = p.x
             show(view, p)
         } else {
             hide(drawerView)
@@ -294,7 +299,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
                     icons = icons,
                     maxWidth = panelMaxDp.width,
                     maxHeight = panelMaxDp.height,
-                    onGroup = { g -> onBattleGroup(g) },
+                    onGroup = {},
                 )
             }.also { panelView = it }
             val p = baseParams(0, WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT)
@@ -308,49 +313,40 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
         if (vis.card) renderCard(m) else hide(cardView)
     }
 
+    /** The card hangs under the drawer window with the same x and width. */
     private fun renderCard(m: DisplayMetrics) {
         val oc = openCard
-        if (oc == null) {
+        if (oc == null || drawerWidthPx == 0 || drawerHeightPx == 0) {
             hide(cardView)
             return
         }
         val density = m.density
-        val maxW = (m.widthPixels * 0.4f).toInt()
-        val margin = (8 * density).toInt()
-        val topY = if (oc.fromBattle) ScreenRegions.BATTLE_PANEL.toPixels(m.widthPixels, m.heightPixels).top
-        else ScreenRegions.DRAWER_AREA.toPixels(m.widthPixels, m.heightPixels).bottom
-        val maxH = (m.heightPixels - topY - margin).coerceAtLeast((80 * density).toInt())
-        val view = cardView ?: ComposeView(context).also { v ->
-            v.setViewTreeLifecycleOwner(owner)
-            v.setViewTreeSavedStateRegistryOwner(owner)
-            v.setOnTouchListener { _, e ->
-                if (e.action == MotionEvent.ACTION_OUTSIDE) closeCard()
-                false
-            }
-            cardView = v
-            watchWidth(v) { w -> cardWidthPx.also { cardWidthPx = w } }
-        }
-        view.setContent {
+        val area = ScreenRegions.DRAWER_AREA.toPixels(m.widthPixels, m.heightPixels)
+        val place = cardPlacement(
+            com.pokemmo.tool.overlay.capture.IntRect(drawerX, 0, drawerX + drawerWidthPx, drawerHeightPx),
+            m.heightPixels, area.bottom,
+        )
+        cardWidthDp = (place.width / density).dp
+        cardMaxHeightDp = (place.maxHeight / density).dp
+        val view = cardView ?: newView {
             val c = openCard
             if (c != null) {
                 DetailCardView(
-                    c.card, c.id, icons,
-                    maxWidth = (maxW / density).dp,
-                    maxHeight = (maxH / density).dp,
+                    card = c.card,
+                    id = c.id,
+                    icons = icons,
+                    panel = true,
+                    width = cardWidthDp,
+                    maxHeight = cardMaxHeightDp,
+                    iconSize = iconDp,
+                    expandedRow = cardRow,
+                    onRow = { i -> cardRow = if (cardRow == i) null else i },
                 )
             }
-        }
-        val p = baseParams(WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
-            WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT)
-        if (oc.fromBattle) {
-            val panel = ScreenRegions.BATTLE_PANEL.toPixels(m.widthPixels, m.heightPixels)
-            p.x = panel.right + (6 * density).toInt()
-            p.y = panel.top
-        } else {
-            val strip = ScreenRegions.DRAWER_AREA.toPixels(m.widthPixels, m.heightPixels)
-            p.x = centredX((strip.left + strip.right) / 2, cardWidthPx)
-            p.y = strip.bottom
-        }
+        }.also { cardView = it }
+        val p = baseParams(0, WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT)
+        p.x = place.x
+        p.y = place.y
         show(view, p)
     }
 
@@ -372,17 +368,14 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
         val area = (current as? ScreenState.Overworld)?.area ?: return
         val spawn = area.spawns.firstOrNull { it.id == id }
         val horde = spawn?.encounters?.mapNotNull { it.hordeSize }?.maxOrNull()
-        openCard = OpenCard(id, buildCard(id, repo, spawn, area, horde), fromBattle = false)
-        render()
-    }
-
-    private fun onBattleGroup(g: OpponentGroup) {
-        openCard = OpenCard(g.pokemon.id, buildCard(g.pokemon.id, repo, null, null, g.count), fromBattle = true)
+        openCard = OpenCard(id, buildCard(id, repo, spawn, area, horde))
+        cardRow = null // every row starts closed
         render()
     }
 
     private fun closeCard() {
         openCard = null
+        cardRow = null
         hide(cardView)
     }
 
