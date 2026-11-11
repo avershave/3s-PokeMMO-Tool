@@ -25,7 +25,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private fun TagKind.label() = when (this) {
+fun TagKind.label() = when (this) {
     TagKind.PVP -> "PvP"
     TagKind.STORY -> "Story"
     TagKind.UTILITY -> "Utility"
@@ -61,7 +61,7 @@ fun DetailCardView(card: Card, id: Int, sprites: SpriteCache, maxWidth: Dp, maxH
             Sprite(sprites, id, 40.dp)
             Column {
                 Text(card.name, color = PanelText, fontSize = 15.sp)
-                if (card.subtitle.isNotEmpty()) Text(card.subtitle, color = PanelMuted, fontSize = 11.sp)
+                if (card.types.isNotEmpty()) Text(card.types.joinToString(" · "), color = PanelMuted, fontSize = 11.sp)
             }
         }
         card.tip?.let { Text(it, color = PanelMuted, fontSize = 11.sp) }
@@ -84,7 +84,7 @@ private fun CardRowView(row: CardRow, open: Boolean, onToggle: () -> Unit) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             KindChip(row.kind)
-            Text(row.title, color = PanelText, fontSize = 12.sp, modifier = Modifier.weight(1f, fill = false))
+            Text(row.via?.let { "as $it" }.orEmpty(), color = PanelText, fontSize = 12.sp, modifier = Modifier.weight(1f, fill = false))
             Text(if (open) "▾" else "▸", color = PanelMuted, fontSize = 12.sp)
         }
         Text(row.summary, color = PanelMuted, fontSize = 11.sp)
@@ -95,7 +95,7 @@ private fun CardRowView(row: CardRow, open: Boolean, onToggle: () -> Unit) {
                     Text(row.more, color = PanelText, fontSize = 11.sp)
                 } else {
                     Text(
-                        "More about ${row.title} ▸",
+                        "More about ${row.kind.label()} ▸",
                         color = Color(0xFF7FB2FF),
                         fontSize = 11.sp,
                         modifier = Modifier.clickable { showMore = true },

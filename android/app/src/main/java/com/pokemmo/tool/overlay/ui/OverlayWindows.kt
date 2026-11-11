@@ -83,7 +83,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
     private data class OpenCard(val id: Int, val card: Card, val fromBattle: Boolean)
 
     // Compose state read by the hosted views.
-    private var stripModel by mutableStateOf<StripModel?>(null)
+    private var stripModel by mutableStateOf<DrawerModel?>(null)
     private var groups by mutableStateOf<List<OpponentGroup>>(emptyList())
     private var openCard by mutableStateOf<OpenCard?>(null)
     private var stripMaxDp by mutableStateOf(400.dp)
@@ -240,9 +240,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
             val spritePx = (SPRITE_DP * density).toInt()
             val titleReserve = (TITLE_RESERVE_DP * density).toInt()
             val maxVisible = ((rect.width - titleReserve) / (spritePx + 4 * density)).toInt().coerceAtLeast(1)
-            stripModel = (s as? ScreenState.Overworld)?.let {
-                buildStrip(it.area, repo, if (stripExpanded) Int.MAX_VALUE else maxVisible)
-            }
+            stripModel = buildDrawer((s as? ScreenState.Overworld)?.area, repo)
             stripMaxDp = (rect.width / density).dp
             val view = stripView ?: newView {
                 StripView(
@@ -342,12 +340,12 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
         val area = (current as? ScreenState.Overworld)?.area ?: return
         val spawn = area.spawns.firstOrNull { it.id == id }
         val horde = spawn?.encounters?.mapNotNull { it.hordeSize }?.maxOrNull()
-        openCard = OpenCard(id, buildCard(id, repo, spawn, horde), fromBattle = false)
+        openCard = OpenCard(id, buildCard(id, repo, spawn, area, horde), fromBattle = false)
         render()
     }
 
     private fun onBattleGroup(g: OpponentGroup) {
-        openCard = OpenCard(g.pokemon.id, buildCard(g.pokemon.id, repo, null, g.count), fromBattle = true)
+        openCard = OpenCard(g.pokemon.id, buildCard(g.pokemon.id, repo, null, null, g.count), fromBattle = true)
         render()
     }
 
