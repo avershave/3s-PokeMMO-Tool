@@ -37,3 +37,7 @@ android/.gradle/
 android/**/build/
 android/local.properties
 android/.kotlin/
+
+# Game ROMs (never commit)
+roms/
+*.nds
