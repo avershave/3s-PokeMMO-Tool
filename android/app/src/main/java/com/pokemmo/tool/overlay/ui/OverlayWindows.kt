@@ -95,6 +95,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
     private var cardWidthDp by mutableStateOf(400.dp)
     private var cardMaxHeightDp by mutableStateOf(300.dp)
     private var panelMaxDp by mutableStateOf(DpSize(150.dp, 300.dp))
+    private var panelRow by mutableStateOf<PanelRow?>(null)
 
     private var current: ScreenState = ScreenState.Idle
     private var battleSuspected = false
@@ -119,6 +120,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
         if (areaOf(prev) != areaOf(s)) drawerShowAll = false
         // A route change or a confirmed battle closes the card; the drawer stays as it was.
         if (areaOf(prev) != areaOf(s) || prev::class != s::class) closeCard()
+        if (prev::class != s::class) panelRow = null // each battle starts with every row closed
         render()
     }
 
@@ -290,6 +292,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
         // Battle panel.
         if (vis.panel && s is ScreenState.Battle && s.groups.isNotEmpty()) {
             groups = s.groups
+            iconDp = (iconSizePx(m.widthPixels, m.heightPixels) / density).dp
             val rect = ScreenRegions.BATTLE_PANEL.toPixels(m.widthPixels, m.heightPixels)
             panelMaxDp = DpSize((rect.width / density).dp, (rect.height / density).dp)
             val view = panelView ?: newView {
@@ -297,9 +300,12 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
                     groups = groups,
                     repo = repo,
                     icons = icons,
-                    maxWidth = panelMaxDp.width,
+                    panel = true,
+                    width = panelMaxDp.width,
                     maxHeight = panelMaxDp.height,
-                    onGroup = {},
+                    iconSize = iconDp,
+                    expanded = panelRow,
+                    onRow = { r -> panelRow = if (panelRow == r) null else r },
                 )
             }.also { panelView = it }
             val p = baseParams(0, WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT)
