@@ -48,17 +48,19 @@ fun BattlePanelView(
     expanded: PanelRow?,
     onRow: (PanelRow) -> Unit,
 ) {
-    Column(
-        Modifier
-            .width(width)
-            .heightIn(max = maxHeight)
-            .then(if (panel) Modifier.background(PanelBg, RoundedCornerShape(iconSize * 0.4f)) else Modifier)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        groups.forEachIndexed { gi, g ->
-            OpponentBlock(g, repo, icons, iconSize, expanded?.takeIf { it.group == gi }?.row) { ri -> onRow(PanelRow(gi, ri)) }
+    PanelStyle(panel) {
+        Column(
+            Modifier
+                .width(width)
+                .heightIn(max = maxHeight)
+                .then(if (panel) Modifier.background(PanelBg, RoundedCornerShape(iconSize * 0.4f)) else Modifier)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            groups.forEachIndexed { gi, g ->
+                OpponentBlock(g, repo, icons, iconSize, expanded?.takeIf { it.group == gi }?.row) { ri -> onRow(PanelRow(gi, ri)) }
+            }
         }
     }
 }

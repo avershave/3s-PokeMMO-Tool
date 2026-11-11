@@ -13,6 +13,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -66,18 +72,52 @@ class IconCache(private val context: Context) {
 
 private val GREYSCALE = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) })
 
+/** True when the background panel is off: text and pixel art then get a soft drop shadow. */
+val LocalNoPanel = staticCompositionLocalOf { false }
+
+private val SHADOW = Color(0xCC000000)
+private val SHADOW_DY = 1.5.dp
+
+/** Provides the panel-off look (shadows on all text and pixel art) to [content]. */
+@Composable
+fun PanelStyle(panel: Boolean, content: @Composable () -> Unit) {
+    if (panel) {
+        CompositionLocalProvider(LocalNoPanel provides false, content = content)
+        return
+    }
+    val d = LocalDensity.current
+    val shadow = with(d) { Shadow(SHADOW, Offset(0f, SHADOW_DY.toPx()), 3.dp.toPx()) }
+    CompositionLocalProvider(
+        LocalNoPanel provides true,
+        LocalTextStyle provides LocalTextStyle.current.copy(shadow = shadow),
+        content = content,
+    )
+}
+
+private val SHADOW_FILTER = ColorFilter.tint(SHADOW)
+
 @Composable
 private fun PixelImage(img: ImageBitmap?, size: Dp, faded: Boolean, modifier: Modifier) {
     if (img == null) {
         Box(modifier.size(size))
         return
     }
-    Image(
-        img, null, modifier.size(size),
-        alpha = if (faded) FADED_ALPHA else 1f,
-        colorFilter = if (faded) GREYSCALE else null,
-        filterQuality = FilterQuality.None,
-    )
+    val alpha = if (faded) FADED_ALPHA else 1f
+    Box(modifier.size(size)) {
+        if (LocalNoPanel.current) {
+            // A blur-free offset copy in black: a crisp pixel drop shadow.
+            Image(
+                img, null, Modifier.size(size).offset(y = SHADOW_DY),
+                alpha = alpha, colorFilter = SHADOW_FILTER, filterQuality = FilterQuality.None,
+            )
+        }
+        Image(
+            img, null, Modifier.size(size),
+            alpha = alpha,
+            colorFilter = if (faded) GREYSCALE else null,
+            filterQuality = FilterQuality.None,
+        )
+    }
 }
 
 /** A Pokémon menu icon, crisp. [frame] 0 or 1. Faded = greyscale at [FADED_ALPHA]. */
@@ -154,8 +194,15 @@ val CHEVRON_UP = art(r(1, 5, 1, 1) to LINE, r(2, 4, 1, 1) to LINE, r(3, 3, 2, 1)
 /** Draws [art] on an 8x8 grid with hard edges. */
 @Composable
 fun PixelArtView(art: PixelArt, size: Dp, modifier: Modifier = Modifier, alpha: Float = 1f) {
+    val shadow = LocalNoPanel.current
     Canvas(modifier.size(size)) {
         val cell = this.size.width / 8f
+        if (shadow) {
+            val dy = SHADOW_DY.toPx()
+            art.cells.forEach { c ->
+                drawRect(SHADOW, Offset(c[0] * cell, c[1] * cell + dy), Size(c[2] * cell, c[3] * cell), alpha = alpha)
+            }
+        }
         art.cells.forEachIndexed { i, c ->
             drawRect(
                 Color(art.colors[i]),

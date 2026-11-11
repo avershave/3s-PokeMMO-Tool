@@ -27,6 +27,7 @@ import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.pokemmo.tool.overlay.battle.OpponentGroup
+import com.pokemmo.tool.overlay.OverlaySettings
 import com.pokemmo.tool.overlay.capture.ScreenRegions
 import com.pokemmo.tool.overlay.data.Area
 import com.pokemmo.tool.overlay.data.OverlayRepository
@@ -97,6 +98,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
     private var panelMaxDp by mutableStateOf(DpSize(150.dp, 300.dp))
     private var panelRow by mutableStateOf<PanelRow?>(null)
 
+    private var panelBg by mutableStateOf(true) // OverlaySettings.panelBackground, applied live
     private var current: ScreenState = ScreenState.Idle
     private var battleSuspected = false
     private var disposed = false
@@ -196,6 +198,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
         context.registerComponentCallbacks(callbacks)
         scope.launch { OverlayStateBus.state.collect { onState(it) } }
         scope.launch { OverlayStateBus.battleSuspected.collect { onSuspected(it) } }
+        scope.launch { OverlaySettings.panelBackground.collect { panelBg = it } }
     }
 
     private fun show(view: View?, params: WindowManager.LayoutParams) {
@@ -254,7 +257,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
                     model = drawerModel,
                     open = drawerOpen,
                     selectedId = openCard?.id,
-                    panel = true,
+                    panel = panelBg,
                     icons = icons,
                     iconSize = iconDp,
                     maxWidth = drawerMaxDp,
@@ -300,7 +303,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
                     groups = groups,
                     repo = repo,
                     icons = icons,
-                    panel = true,
+                    panel = panelBg,
                     width = panelMaxDp.width,
                     maxHeight = panelMaxDp.height,
                     iconSize = iconDp,
@@ -341,7 +344,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
                     card = c.card,
                     id = c.id,
                     icons = icons,
-                    panel = true,
+                    panel = panelBg,
                     width = cardWidthDp,
                     maxHeight = cardMaxHeightDp,
                     iconSize = iconDp,

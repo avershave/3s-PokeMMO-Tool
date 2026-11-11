@@ -27,6 +27,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -34,6 +36,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -72,6 +75,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
+        OverlaySettings.ensureInit(this)
         refresh()
         setContent {
             MaterialTheme(colorScheme = OverlayColors) { Screen() }
@@ -93,6 +97,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun Screen() {
         val capturing by OverlayStateBus.capturing.collectAsState()
+        val panelBackground by OverlaySettings.panelBackground.collectAsState()
         val s = SetupState(overlayGranted, notificationsGranted, capturing)
         val light = Color(0xFFE8EAF0)
         val buttonColors = ButtonDefaults.buttonColors(
@@ -133,8 +138,8 @@ class MainActivity : ComponentActivity() {
                 )
             }
             Text(
-                "When asked what to share, choose PokeMMO as the app, or the entire screen. " +
-                    "Sharing only the PokeMMO window keeps the overlay out of the capture.",
+                "When asked what to share, choose A single app → PokeMMO. " +
+                    "Sharing only PokeMMO keeps the overlay out of what it reads.",
                 color = light, fontSize = 14.sp,
             )
             Button(
@@ -152,6 +157,27 @@ class MainActivity : ComponentActivity() {
                 colors = buttonColors,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Stop overlay") }
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Background panel", color = light, fontSize = 16.sp)
+                    Text(
+                        "A dark see-through panel behind the overlay. Off: icons and text sit on the game with a soft shadow.",
+                        color = Color(0xFFB8BDC9), fontSize = 13.sp,
+                    )
+                }
+                Switch(
+                    checked = panelBackground,
+                    onCheckedChange = { OverlaySettings.setPanelBackground(it) },
+                    colors = SwitchDefaults.colors(
+                        checkedTrackColor = Color(0xFF7FB2FF),
+                        checkedThumbColor = Color(0xFF0B1220),
+                    ),
+                )
+            }
             Spacer(Modifier.height(8.dp))
             Text("Screen text is read on your phone only.", color = light, fontSize = 13.sp)
         }
