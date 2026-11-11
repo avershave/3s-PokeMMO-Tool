@@ -5,7 +5,6 @@ import android.graphics.BitmapFactory
 import android.util.LruCache
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,11 +28,16 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-val PanelBg = Color(PANEL_BG_ARGB)
+val PanelBg = Color(0xDB1C202A)
 val PanelText = Color(0xFFE8EAF0)
 val PanelMuted = Color(0xFFA0A6B8)
 
-fun TagKind.color() = Color(argb)
+fun TagKind.color() = when (this) {
+    TagKind.PVP -> Color(0xFFFF8A7A)
+    TagKind.STORY -> Color(0xFF7FB8FF)
+    TagKind.UTILITY -> Color(0xFF8FE08F)
+    TagKind.EV -> Color(0xFFAAB3C2)
+}
 
 /** Sprites are 96x96 webp assets; a small LRU keeps the strip cheap to redraw. */
 class SpriteCache(private val context: Context) {
@@ -60,18 +64,15 @@ fun Sprite(sprites: SpriteCache, id: Int, size: Dp, modifier: Modifier = Modifie
     }
 }
 
-/**
- * The slim strip: route name and spawn sprites. Valuable spawns get a colored outline, the
- * rest are dimmed. No level text is ever drawn here (see the overlay text rule).
- */
+/** Temporary until the drawer view (Task 9): draws the route's icons in one row. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun StripView(
-    model: StripModel?,
+    model: DrawerModel?,
     sprites: SpriteCache,
     spriteSize: Dp,
     maxWidth: Dp,
-    onItem: (StripItem) -> Unit,
+    onItem: (DrawerItem) -> Unit,
     onOverflow: () -> Unit,
 ) {
     Box(
@@ -80,43 +81,14 @@ fun StripView(
             .background(PanelBg, RoundedCornerShape(10.dp))
             .padding(horizontal = 8.dp, vertical = 4.dp),
     ) {
-        if (model == null) {
-            Text("Looking for route…", color = PanelMuted, fontSize = 12.sp)
+        if (model == null || model.empty) {
+            Text(NO_WILD_TEXT, color = PanelMuted, fontSize = 12.sp)
         } else {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-                itemVerticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    model.title,
-                    color = PanelText,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(end = 4.dp),
-                )
-                if (model.empty) {
-                    Text(EMPTY_STRIP_TEXT, color = PanelMuted, fontSize = 12.sp)
-                }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 model.items.forEach { item ->
-                    val shape = RoundedCornerShape(5.dp)
-                    val frame = item.outline?.let { Modifier.border(2.dp, it.color(), shape) } ?: Modifier
                     Sprite(
                         sprites, item.id, spriteSize,
-                        Modifier
-                            .alpha(if (item.dimmed) 0.4f else 1f)
-                            .then(frame)
-                            .clickable { onItem(item) },
-                    )
-                }
-                if (model.overflow > 0) {
-                    Text(
-                        "+${model.overflow}",
-                        color = PanelText,
-                        fontSize = 12.sp,
-                        modifier = Modifier
-                            .clickable { onOverflow() }
-                            .background(Color(0xFF3A3F52), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 6.dp, vertical = 3.dp),
+                        Modifier.alpha(if (item.worth) 1f else 0.4f).clickable { onItem(item) },
                     )
                 }
             }

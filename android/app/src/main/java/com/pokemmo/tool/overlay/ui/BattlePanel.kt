@@ -51,17 +51,12 @@ fun BattlePanelView(
     ) {
         groups.forEach { g ->
             val p = g.pokemon
-            val vt = buildOpponentTags(repo, p.id)
             val ev = repo.tags(p.id).firstOrNull { it.kind == "ev" }?.summary
             Row(
                 Modifier.fillMaxWidth().clickable { onGroup(g) },
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Box(
-                    Modifier.then(
-                        vt.outline?.let { Modifier.border(2.dp, Color(it.argb), RoundedCornerShape(6.dp)) } ?: Modifier,
-                    ),
-                ) { Sprite(sprites, p.id, 40.dp) }
+                Sprite(sprites, p.id, 40.dp)
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text(
@@ -79,11 +74,6 @@ fun BattlePanelView(
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         p.weak4.forEach { WeakChip("4×", it, Color(0xFFC0392B)) }
                         p.weak2.forEach { WeakChip("2×", it, Color(0xFF8A5A1E)) }
-                    }
-                    if (vt.chips.isNotEmpty()) {
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            vt.chips.forEach { ValueChip(it.label, Color(it.kind.argb)) }
-                        }
                     }
                     ev?.let { Text(evSummaryForHorde(it, g.count), color = PanelMuted, fontSize = 10.sp) }
                 }
