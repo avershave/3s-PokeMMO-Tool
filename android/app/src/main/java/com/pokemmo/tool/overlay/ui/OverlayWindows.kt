@@ -236,7 +236,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
         if (s is ScreenState.Battle) {
             hide(stripView)
         } else {
-            val rect = ScreenRegions.STRIP_AREA.toPixels(m.widthPixels, m.heightPixels)
+            val rect = ScreenRegions.DRAWER_AREA.toPixels(m.widthPixels, m.heightPixels)
             val spritePx = (SPRITE_DP * density).toInt()
             val titleReserve = (TITLE_RESERVE_DP * density).toInt()
             val maxVisible = ((rect.width - titleReserve) / (spritePx + 4 * density)).toInt().coerceAtLeast(1)
@@ -300,7 +300,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
         val maxW = (m.widthPixels * 0.4f).toInt()
         val margin = (8 * density).toInt()
         val topY = if (oc.fromBattle) ScreenRegions.BATTLE_PANEL.toPixels(m.widthPixels, m.heightPixels).top
-        else ScreenRegions.STRIP_AREA.toPixels(m.widthPixels, m.heightPixels).bottom
+        else ScreenRegions.DRAWER_AREA.toPixels(m.widthPixels, m.heightPixels).bottom
         val maxH = (m.heightPixels - topY - margin).coerceAtLeast((80 * density).toInt())
         val view = cardView ?: ComposeView(context).also { v ->
             v.setViewTreeLifecycleOwner(owner)
@@ -329,7 +329,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
             p.x = panel.right + (6 * density).toInt()
             p.y = panel.top
         } else {
-            val strip = ScreenRegions.STRIP_AREA.toPixels(m.widthPixels, m.heightPixels)
+            val strip = ScreenRegions.DRAWER_AREA.toPixels(m.widthPixels, m.heightPixels)
             p.x = centredX((strip.left + strip.right) / 2, cardWidthPx)
             p.y = strip.bottom
         }
