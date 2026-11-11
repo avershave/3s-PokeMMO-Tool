@@ -12,12 +12,24 @@ object OverlayStateBus {
     private val _capturing = MutableStateFlow(false)
     val capturing: StateFlow<Boolean> = _capturing.asStateFlow()
 
+    private val _battleSuspected = MutableStateFlow(false)
+
+    /** True on any tick that read an opponent line, before the battle is confirmed. */
+    val battleSuspected: StateFlow<Boolean> = _battleSuspected.asStateFlow()
+
+    fun setBattleSuspected(v: Boolean) {
+        _battleSuspected.value = v
+    }
+
     fun publish(s: ScreenState) {
         _state.value = s
     }
 
     fun setCapturing(on: Boolean) {
         _capturing.value = on
-        if (!on) _state.value = ScreenState.Idle
+        if (!on) {
+            _battleSuspected.value = false
+            _state.value = ScreenState.Idle
+        }
     }
 }

@@ -24,7 +24,12 @@ object ScreenRegions {
     val ROUTE = FRect(0.03f, 0.00f, 0.26f, 0.055f)
     val BATTLE = FRect(0.00f, 0.08f, 0.86f, 0.28f)
 
-    // Overlay regions. The strip is shown in the overworld, the panel during battle.
-    val STRIP_AREA = FRect(0.27f, 0.00f, 0.735f, 0.10f)
+    // Overlay regions. The drawer and card are shown in the overworld, the panel during battle.
+    // DRAWER_AREA: its width is the drawer and card width; its bottom is the lowest the card may reach.
+    // It overlaps BATTLE, which is fine: they are hidden as soon as a battle is suspected.
+    val DRAWER_AREA = FRect(0.28f, 0.00f, 0.72f, 0.42f)
     val BATTLE_PANEL = FRect(0.01f, 0.29f, 0.205f, 0.71f)
+
+    /** Pokémon icon edge as a fraction of the screen's long side (about 56 px on 2244 px). */
+    const val ICON_FRACTION = 0.025f
 }

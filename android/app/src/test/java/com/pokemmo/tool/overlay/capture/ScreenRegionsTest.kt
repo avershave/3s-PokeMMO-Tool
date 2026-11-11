@@ -7,9 +7,9 @@ import org.junit.Test
 class ScreenRegionsTest {
     @Test
     fun `overlay regions never overlap OCR regions in their state`() {
-        // Overworld: the strip is shown, battle OCR is not running.
-        assertFalse(ScreenRegions.STRIP_AREA.intersects(ScreenRegions.ROUTE))
-        // Battle: the panel is shown; the strip is hidden.
+        // Overworld: the drawer and card are shown; only the route name must stay clear.
+        assertFalse(ScreenRegions.DRAWER_AREA.intersects(ScreenRegions.ROUTE))
+        // Battle: the panel is shown; the drawer and card are hidden.
         assertFalse(ScreenRegions.BATTLE_PANEL.intersects(ScreenRegions.BATTLE))
         assertFalse(ScreenRegions.BATTLE_PANEL.intersects(ScreenRegions.ROUTE))
     }

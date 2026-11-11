@@ -263,6 +263,7 @@ class CaptureService : Service() {
             is ScreenState.Battle -> state.area?.let { currentRegion = it.region }
             ScreenState.Idle -> Unit
         }
+        OverlayStateBus.setBattleSuspected(reading.groups.isNotEmpty())
         OverlayStateBus.publish(state)
     }
 
