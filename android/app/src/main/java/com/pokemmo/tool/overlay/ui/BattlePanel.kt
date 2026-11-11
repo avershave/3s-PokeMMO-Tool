@@ -35,7 +35,7 @@ import com.pokemmo.tool.overlay.data.OverlayRepository
 fun BattlePanelView(
     groups: List<OpponentGroup>,
     repo: OverlayRepository,
-    sprites: SpriteCache,
+    icons: IconCache,
     maxWidth: Dp,
     maxHeight: Dp,
     onGroup: (OpponentGroup) -> Unit,
@@ -56,7 +56,7 @@ fun BattlePanelView(
                 Modifier.fillMaxWidth().clickable { onGroup(g) },
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Sprite(sprites, p.id, 40.dp)
+                PixelIcon(icons, p.id, 40.dp)
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text(

@@ -73,6 +73,8 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material3)
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    debugImplementation("androidx.compose.ui:ui-tooling")
     implementation(libs.androidx.lifecycle.runtime)
     implementation(libs.androidx.savedstate)
     implementation(libs.kotlinx.serialization.json)
