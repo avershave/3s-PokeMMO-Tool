@@ -41,3 +41,7 @@ android/.kotlin/
 # Game ROMs (never commit)
 roms/
 *.nds
+
+# Personal-use PokeMMO Hub data (no licence; never commit): npm run overlay:hub
+.local/
+android/app/src/debug/assets/

@@ -56,8 +56,10 @@ android {
 
     testOptions {
         unitTests.all {
-            // Tests read generated overlay JSON relative to the module dir.
-            it.systemProperty("overlay.assets.dir", file("src/main/assets/overlay").absolutePath)
+            // Tests read generated overlay JSON relative to the module dir. -PoverlayAssets=debug
+            // runs them against the personal PokeMMO Hub data instead (npm run overlay:build -- --hub).
+            val set = (project.findProperty("overlayAssets") as String?) ?: "main"
+            it.systemProperty("overlay.assets.dir", file("src/$set/assets/overlay").absolutePath)
         }
     }
 }

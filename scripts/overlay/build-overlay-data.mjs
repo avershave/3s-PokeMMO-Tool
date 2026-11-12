@@ -151,12 +151,29 @@ async function main() {
     fs.mkdirSync(path.dirname(p), { recursive: true });
     fs.writeFileSync(p, JSON.stringify(data) + '\n');
   };
-  const { DEX_LIST } = await import('../../src/lib/dex.js');
+  const { DEX_LIST, buildDexList } = await import('../../src/lib/dex.js');
+
+  // --hub: personal build from PokeMMO Hub's current data (npm run overlay:hub first). Written to
+  // the debug build's own assets, which override main's and are gitignored, so nothing derived
+  // from it is committed. Without --hub the committed data is rebuilt as before.
+  const hub = process.argv.includes('--hub');
+  let dexList = DEX_LIST;
+  let hordeRegions = readJson('horderegiondata.json');
+  const catchRates = readJson('data/catch-rates.json');
+  if (hub) {
+    const hubFile = path.join(root, '.local/hub/monster.json');
+    if (!fs.existsSync(hubFile)) throw new Error('No .local/hub/monster.json: run npm run overlay:hub first');
+    const { hubToDex, hubToHordeRegions } = await import('./hub-data.mjs');
+    const raw = JSON.parse(fs.readFileSync(hubFile, 'utf8'));
+    dexList = buildDexList(hubToDex(raw));
+    hordeRegions = hubToHordeRegions(raw);
+    for (const m of raw) if (m.catch_rate != null) catchRates[String(m.id)] = m.catch_rate;
+  }
 
   const out = buildOverlayData({
-    dexList: DEX_LIST,
-    hordeRegions: readJson('horderegiondata.json'),
-    catchRates: readJson('data/catch-rates.json'),
+    dexList,
+    hordeRegions,
+    catchRates,
     tagInputs: {
       smogon: readJson('tags/smogon-gen5.json'),
       utilityRules: readJson('tags/utility-rules.json'),
@@ -168,11 +185,19 @@ async function main() {
   });
 
   const assets = path.join(root, 'android/app/src/main/assets/overlay');
-  writeJson(path.join(assets, 'pokemon.json'), out.pokemon);
-  writeJson(path.join(assets, 'areas.json'), out.areas);
-  writeJson(path.join(assets, 'tags.json'), out.tags);
-  writeJson(path.join(root, 'public/data/overlay/tags.json'), out.tags);
-  writeJson(path.join(root, 'android/app/src/test/resources/alias-fixtures.json'), out.aliasFixtures);
+  if (hub) {
+    const debugAssets = path.join(root, 'android/app/src/debug/assets/overlay');
+    writeJson(path.join(debugAssets, 'pokemon.json'), out.pokemon);
+    writeJson(path.join(debugAssets, 'areas.json'), out.areas);
+    writeJson(path.join(debugAssets, 'tags.json'), out.tags);
+    console.log(`PokeMMO Hub data -> ${path.relative(root, debugAssets)} (debug builds only, gitignored)`);
+  } else {
+    writeJson(path.join(assets, 'pokemon.json'), out.pokemon);
+    writeJson(path.join(assets, 'areas.json'), out.areas);
+    writeJson(path.join(assets, 'tags.json'), out.tags);
+    writeJson(path.join(root, 'public/data/overlay/tags.json'), out.tags);
+    writeJson(path.join(root, 'android/app/src/test/resources/alias-fixtures.json'), out.aliasFixtures);
+  }
 
   const icons = copyIcons(root, assets, out.pokemon.pokemon.map(p => p.id));
   for (const id of icons.missing) out.warnings.push(`missing icon ${id} (run npm run overlay:icons)`);

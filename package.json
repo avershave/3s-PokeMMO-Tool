@@ -16,6 +16,7 @@
     "test": "vitest run",
     "overlay:build": "vite-node scripts/overlay/build-overlay-data.mjs",
     "overlay:icons": "node scripts/overlay/extract-icons.mjs",
+    "overlay:hub": "node scripts/overlay/fetch-hub.mjs",
     "start": "cross-env ELECTRON_RUN_AS_NODE= electron .",
     "build:helper": "node ./scripts/run-build-helper.js",
     "clean": "rimraf release",
