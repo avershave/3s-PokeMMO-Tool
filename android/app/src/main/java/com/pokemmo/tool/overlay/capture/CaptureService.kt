@@ -239,6 +239,7 @@ class CaptureService : Service() {
             return
         }
         val r = reader ?: return
+        val tickStart = System.currentTimeMillis()
         // Regions are fractions of the landscape screen; portrait frames are meaningless (the
         // capture is landscape-sized, so ask the real display which way it is turned).
         val m = realMetrics()
@@ -258,7 +259,8 @@ class CaptureService : Service() {
         lastReading = reading
 
         currentCoroutineContext().ensureActive()
-        val state = machine.onTick(reading.route, reading.groups)
+        val state = machine.onTick(reading.route, reading.groups, reading.routeExact)
+        debugLog { "tick total=${System.currentTimeMillis() - tickStart}ms state=${state::class.simpleName}" }
         when (state) {
             is ScreenState.Overworld -> currentRegion = state.area.region
             is ScreenState.Battle -> state.area?.let { currentRegion = it.region }
@@ -269,7 +271,7 @@ class CaptureService : Service() {
     }
 
     /** What one frame showed. */
-    private class Reading(val route: Area?, val groups: List<OpponentGroup>)
+    private class Reading(val route: Area?, val routeExact: Boolean, val groups: List<OpponentGroup>)
 
     /** Only touched by the tick loop. */
     private var lastReading: Reading? = null
@@ -285,13 +287,19 @@ class CaptureService : Service() {
         val routeBmp = crop(frame, routeRect)
         val battleBmp = crop(frame, battleRect)
         try {
+            val t0 = System.nanoTime()
             val routeLines = engine.read(routeBmp, routeRect.left, routeRect.top)
             val battleLines = engine.read(battleBmp, battleRect.left, battleRect.top)
+            val t1 = System.nanoTime()
 
-            val route = routeLines.firstNotNullOfOrNull { matcher.match(it.text, currentRegion) }
+            val routeHit = routeLines.firstNotNullOfOrNull { line ->
+                matcher.match(line.text, currentRegion)?.let { it to matcher.isExact(line.text, it) }
+            }
+            val route = routeHit?.first
             debugLog {
-                "frame route=${routeLines.map { it.text }} " +
-                    "match=${route?.let { "${it.region}/${it.name}" }} battle=${battleLines.map { it.text }}"
+                "frame ocr=${(t1 - t0) / 1_000_000}ms " +
+                    "route=${routeLines.map { it.text }} " +
+                    "match=${route?.let { "${it.region}/${it.name}" }} exact=${routeHit?.second} battle=${battleLines.map { it.text }}"
             }
             val opponents = parser.parse(battleLines)
             val groups = if (opponents.isEmpty()) {
@@ -308,7 +316,7 @@ class CaptureService : Service() {
                     )
                 }
             }
-            return Reading(route, groups)
+            return Reading(route, routeHit?.second == true, groups)
         } finally {
             routeBmp.recycle()
             battleBmp.recycle()

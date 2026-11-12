@@ -11,8 +11,8 @@ class RouteMatcher(private val areas: List<Area>) {
         val GENERIC = listOf("city", "town", "forest", "cave", "road", "gate", "outside", "inside", "entrance", "exit")
         val DOT_CUT = Regex("\\s*[·•]\\s*")
         // OCR sometimes drops the dot entirely ("Vermilion City VILLAGE CH 5"), so a plain space
-        // before a standalone "CH n" counts too.
-        val CHANNEL_MARKER = Regex("(?:[·•-]\\s*|\\s)CH\\s*\\d+(?![A-Za-z0-9])", RegexOption.IGNORE_CASE)
+        // before a standalone "CH n" counts too. "CH" is often read as "GH" on the Pixel.
+        val CHANNEL_MARKER = Regex("(?:[·•-]\\s*|\\s)[CG]H\\s*\\d+(?![A-Za-z0-9])", RegexOption.IGNORE_CASE)
         val ROUTE_NUM = Regex("route\\s*(\\d+)(?![A-Za-z0-9])", RegexOption.IGNORE_CASE)
         val ROUTE_LINE = Regex("^route\\b", RegexOption.IGNORE_CASE)
         val NON_ALNUM = Regex("[^a-z0-9]+")
@@ -51,6 +51,14 @@ class RouteMatcher(private val areas: List<Area>) {
         }
         return null
     }
+
+    /**
+     * True when the line, once the place type and channel are cut, is exactly [area]'s name:
+     * a read that clean is trusted on its own, without waiting for a second tick. Places not in
+     * the data (a garbled line with a channel marker) are never exact.
+     */
+    fun isExact(ocrLine: String, area: Area): Boolean =
+        areas.any { it === area } && clean(ocrLine).equals(area.name, ignoreCase = true)
 
     private fun clean(line: String): String {
         var s = DOT_CUT.split(line.trim(), 2).first().trim()

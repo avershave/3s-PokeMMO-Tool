@@ -18,7 +18,8 @@ class ScreenStateMachine {
     private var emptyTicks = 0
     private var battle: ScreenState.Battle? = null
 
-    fun onTick(route: Area?, opponents: List<OpponentGroup>): ScreenState {
+    /** [routeExact]: the route line read as exactly a known name, so it is trusted at once. */
+    fun onTick(route: Area?, opponents: List<OpponentGroup>, routeExact: Boolean = false): ScreenState {
         val inBattle = battle
         if (inBattle != null) {
             // Route ticks during a battle are ignored; only opponents decide when it ends.
@@ -34,7 +35,7 @@ class ScreenStateMachine {
             return battle!!
         }
 
-        updateRoute(route)
+        updateRoute(route, routeExact)
 
         if (opponents.isNotEmpty()) {
             if (++battleTicks >= BATTLE_ENTER_TICKS) {
@@ -51,9 +52,10 @@ class ScreenStateMachine {
     }
 
     /** A null route is "no information": it neither clears nor disturbs a pending change. */
-    private fun updateRoute(route: Area?) {
+    private fun updateRoute(route: Area?, exact: Boolean) {
         if (route == null) return
-        if (route == confirmedArea) {
+        if (route == confirmedArea || exact) {
+            confirmedArea = route
             candidateArea = null
             candidateTicks = 0
             return

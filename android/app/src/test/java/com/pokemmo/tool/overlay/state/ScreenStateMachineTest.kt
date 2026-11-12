@@ -30,6 +30,29 @@ class ScreenStateMachineTest {
     }
 
     @Test
+    fun `an exact route read switches on the first tick`() {
+        val m = ScreenStateMachine()
+        assertEquals(ScreenState.Overworld(a), m.onTick(a, none, routeExact = true))
+        assertEquals(ScreenState.Overworld(b), m.onTick(b, none, routeExact = true))
+    }
+
+    @Test
+    fun `a fuzzy route read still needs two ticks`() {
+        val m = ScreenStateMachine()
+        m.confirm(a)
+        assertEquals(ScreenState.Overworld(a), m.onTick(b, none, routeExact = false))
+        assertEquals(ScreenState.Overworld(b), m.onTick(b, none, routeExact = false))
+    }
+
+    @Test
+    fun `an exact read during a battle does not change the area`() {
+        val m = ScreenStateMachine()
+        m.confirm(a)
+        m.onTick(null, g1); m.onTick(null, g1)
+        assertEquals(ScreenState.Battle(g1, a), m.onTick(b, g1, routeExact = true))
+    }
+
+    @Test
     fun `battle entry needs two ticks`() {
         val m = ScreenStateMachine()
         m.confirm(a)
