@@ -4,6 +4,7 @@ import com.pokemmo.tool.overlay.data.Area
 import com.pokemmo.tool.overlay.data.OverlayRepository
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -113,6 +114,28 @@ class RouteMatcherTest {
         val unknown = matcher.match("Pallet Lab INSIDE CH 2", "Kanto")
         assertEquals("Pallet Lab", unknown!!.name)
         assertTrue(unknown.spawns.isEmpty())
+    }
+
+    @Test
+    fun `channel read as GH still matches (read on Pixel 9 Pro XL)`() {
+        // Four of the first six reads after walking back into Vermilion City came out like this.
+        val a = matcher.match("Vermilion City VILLAGE GH 2", "Kanto")
+        assertEquals("Vermilion City", a!!.name)
+        assertEquals("Kanto", a.region)
+        assertEquals("Route 11", matcher.match("Route 11 ROUTE GH 2", "Kanto")!!.name)
+    }
+
+    @Test
+    fun `exact reads are told apart from fuzzy ones`() {
+        val clean = "Route 11 ROUTE CH 4"
+        assertTrue(matcher.isExact(clean, matcher.match(clean, "Kanto")!!))
+        val gh = "Vermilion City VILLAGE GH 4"
+        assertTrue(matcher.isExact(gh, matcher.match(gh, "Kanto")!!))
+        // Read on the Pixel: a stray letter before the name matches fuzzily, so it is not exact.
+        val stray = "le Vermilion City VILLAGE CH2"
+        assertFalse(matcher.isExact(stray, matcher.match(stray, "Kanto")!!))
+        val typo = "Vermilion Clty VILLAGE CH 2"
+        assertFalse(matcher.isExact(typo, matcher.match(typo, "Kanto")!!))
     }
 
     @Test
