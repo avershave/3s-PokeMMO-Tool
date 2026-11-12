@@ -28,6 +28,11 @@
 
 ## Verify
 
+Close any screen mirror (scrcpy, casting) before starting the overlay. On the Pixel 9 Pro XL
+(Android 16), when a mirror's display closes, which scrcpy also does on every rotation, Android
+pauses the overlay's capture and never resumes it; only Stop/Start recovers. Use
+`adb exec-out screencap -p` for screenshots instead.
+
 The overlay icons come from your own Black ROM (`npm run overlay:icons`, committed under `art/overlay/`).
 
 Drawer (top centre):
