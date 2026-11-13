@@ -25,10 +25,17 @@ object ScreenRegions {
     val BATTLE = FRect(0.00f, 0.08f, 0.86f, 0.28f)
 
     // Overlay regions. The drawer and card are shown in the overworld, the panel during battle.
-    // DRAWER_AREA: its width is the drawer and card width; its bottom is the lowest the card may reach.
-    // It overlaps BATTLE, which is fine: they are hidden as soon as a battle is suspected.
-    val DRAWER_AREA = FRect(0.28f, 0.00f, 0.72f, 0.42f)
-    val BATTLE_PANEL = FRect(0.01f, 0.29f, 0.205f, 0.71f)
+    // DRAWER_AREA: the drawer's widest and tallest; it runs from the route name to the icons at the
+    // top right. It overlaps BATTLE, which is fine: it is hidden as soon as a battle is suspected.
+    val DRAWER_AREA = FRect(0.27f, 0.00f, 0.79f, 0.50f)
+    // Left of the player's Pokémon, between the opponent names and the Fight button.
+    val BATTLE_PANEL = FRect(0.01f, 0.29f, 0.30f, 0.71f)
+
+    /** Card width as a fraction of the screen width; centred under the drawer. */
+    const val CARD_WIDTH = 0.66f
+
+    /** Everything drawn (text, spacing, icons) is this many times the base design size. */
+    const val UI_SCALE = 1.5f
 
     /**
      * The lowest the card may reach, as a fraction of the height. The card is only open in the
@@ -36,6 +43,6 @@ object ScreenRegions {
      */
     const val CARD_MAX_BOTTOM = 0.9f
 
-    /** Pokémon icon edge as a fraction of the screen's long side (about 56 px on 2244 px). */
-    const val ICON_FRACTION = 0.025f
+    /** Pokémon icon edge as a fraction of the screen's long side (about 84 px on 2244 px, so 96). */
+    const val ICON_FRACTION = 0.025f * UI_SCALE
 }

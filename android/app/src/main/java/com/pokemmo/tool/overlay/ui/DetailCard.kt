@@ -32,17 +32,22 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pokemmo.tool.overlay.capture.IntRect
+import com.pokemmo.tool.overlay.capture.ScreenRegions
 
-/** Where the card window goes, in px: under the drawer window, same x and width. */
+/** Where the card window goes, in px: under the drawer window, centred on it. */
 data class CardPlacement(val x: Int, val y: Int, val width: Int, val maxHeight: Int)
 
 /**
- * The card spans [area] (DRAWER_AREA, which the open drawer also spans, so their edges line up)
- * and starts just below the drawer window's bottom; it may reach down to [maxBottom].
+ * The card is [ScreenRegions.CARD_WIDTH] of the screen wide, centred on [area] (DRAWER_AREA, which
+ * the drawer is centred in), and starts just below the drawer window's bottom; it may reach down to
+ * [maxBottom]. It is wider than the drawer, so it never starts above the route name's bottom.
  */
-fun cardPlacement(drawerBottom: Int, area: IntRect, screenH: Int, maxBottom: Int): CardPlacement {
-    val y = drawerBottom + (0.005f * screenH).toInt()
-    return CardPlacement(area.left, y, area.width, (maxBottom - y).coerceAtLeast(0))
+fun cardPlacement(drawerBottom: Int, area: IntRect, screenW: Int, screenH: Int, maxBottom: Int): CardPlacement {
+    val gap = (0.005f * screenH).toInt()
+    val y = maxOf(drawerBottom, (ScreenRegions.ROUTE.bottom * screenH).toInt()) + gap
+    val width = (ScreenRegions.CARD_WIDTH * screenW).toInt().coerceAtMost(screenW)
+    val x = ((area.left + area.right) / 2 - width / 2).coerceIn(0, screenW - width)
+    return CardPlacement(x, y, width, (maxBottom - y).coerceAtLeast(0))
 }
 
 private val LABEL_WIDTH = 34.dp
@@ -156,7 +161,10 @@ fun ValueRow(row: CardRow, open: Boolean, onToggle: () -> Unit, fontSize: Float 
                 if (row.body.isNotEmpty()) Text(row.body, color = PanelMuted, fontSize = (fontSize * 0.9f).sp, lineHeight = (fontSize * 1.3f).sp)
                 row.more?.let { more ->
                     if (showMore) {
-                        Text(more, color = PanelMuted, fontSize = (fontSize * 0.9f).sp, lineHeight = (fontSize * 1.3f).sp)
+                        Text(
+                            more, color = PanelMuted, fontSize = (fontSize * 0.9f).sp, lineHeight = (fontSize * 1.3f).sp,
+                            modifier = Modifier.clickable { showMore = false },
+                        )
                     } else {
                         Text(
                             "More about ${row.kind.label()} ▸",
