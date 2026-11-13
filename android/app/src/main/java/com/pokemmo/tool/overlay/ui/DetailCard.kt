@@ -34,20 +34,18 @@ import androidx.compose.ui.unit.sp
 import com.pokemmo.tool.overlay.capture.IntRect
 import com.pokemmo.tool.overlay.capture.ScreenRegions
 
-/** Where the card window goes, in px: under the drawer window, centred on it. */
+/** Where the card window goes, in px: under the drawer window. */
 data class CardPlacement(val x: Int, val y: Int, val width: Int, val maxHeight: Int)
 
 /**
- * The card is [ScreenRegions.CARD_WIDTH] of the screen wide, centred on [area] (DRAWER_AREA, which
- * the drawer is centred in), and starts just below the drawer window's bottom; it may reach down to
- * [maxBottom]. It is wider than the drawer, so it never starts above the route name's bottom.
+ * The card spans [area] (CARD_AREA: right of the D-pad, wider than the drawer) and starts just
+ * below the drawer window's bottom; it may reach down to [maxBottom]. It never starts above the
+ * route name's bottom, which it would otherwise cover on the left.
  */
-fun cardPlacement(drawerBottom: Int, area: IntRect, screenW: Int, screenH: Int, maxBottom: Int): CardPlacement {
+fun cardPlacement(drawerBottom: Int, area: IntRect, screenH: Int, maxBottom: Int): CardPlacement {
     val gap = (0.005f * screenH).toInt()
     val y = maxOf(drawerBottom, (ScreenRegions.ROUTE.bottom * screenH).toInt()) + gap
-    val width = (ScreenRegions.CARD_WIDTH * screenW).toInt().coerceAtMost(screenW)
-    val x = ((area.left + area.right) / 2 - width / 2).coerceIn(0, screenW - width)
-    return CardPlacement(x, y, width, (maxBottom - y).coerceAtLeast(0))
+    return CardPlacement(area.left, y, area.width, (maxBottom - y).coerceAtLeast(0))
 }
 
 private val LABEL_WIDTH = 34.dp

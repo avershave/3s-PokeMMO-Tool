@@ -31,8 +31,14 @@ object ScreenRegions {
     // Left of the player's Pokémon, between the opponent names and the Fight button.
     val BATTLE_PANEL = FRect(0.01f, 0.29f, 0.30f, 0.71f)
 
-    /** Card width as a fraction of the screen width; centred under the drawer. */
-    const val CARD_WIDTH = 0.66f
+    /**
+     * The card's left and right edges: from just right of the D-pad to the right edge of the old,
+     * centred 66% card. Its top comes from the drawer, its bottom from CARD_MAX_BOTTOM.
+     */
+    val CARD_AREA = FRect(0.28f, 0.00f, 0.86f, 0.90f)
+
+    // The game's on-screen controls (overworld), which the overlay must leave free.
+    val DPAD = FRect(0.13f, 0.56f, 0.27f, 0.87f)
 
     /** Everything drawn (text, spacing, icons) is this many times the base design size. */
     const val UI_SCALE = 1.5f
