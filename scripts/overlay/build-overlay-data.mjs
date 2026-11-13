@@ -54,7 +54,7 @@ function buildPokemon(dexList, catchRates) {
   return { schemaVersion: SCHEMA_VERSION, pokemon };
 }
 
-function buildAreas(dexList, hordeRegions) {
+export function buildAreas(dexList, hordeRegions) {
   const sizeMap = buildHordeSizeMap(hordeRegions);
   const areasIndex = buildAreasIndex(dexList, sizeMap);
   const locIndex = buildLocationsIndex(dexList);
@@ -157,6 +157,7 @@ async function main() {
   // the debug build's own assets, which override main's and are gitignored, so nothing derived
   // from it is committed. Without --hub the committed data is rebuilt as before.
   const hub = process.argv.includes('--hub');
+  let hubRaw = null;
   let dexList = DEX_LIST;
   let hordeRegions = readJson('horderegiondata.json');
   const catchRates = readJson('data/catch-rates.json');
@@ -165,6 +166,7 @@ async function main() {
     if (!fs.existsSync(hubFile)) throw new Error('No .local/hub/monster.json: run npm run overlay:hub first');
     const { hubToDex, hubToHordeRegions } = await import('./hub-data.mjs');
     const raw = JSON.parse(fs.readFileSync(hubFile, 'utf8'));
+    hubRaw = raw;
     dexList = buildDexList(hubToDex(raw));
     hordeRegions = hubToHordeRegions(raw);
     for (const m of raw) if (m.catch_rate != null) catchRates[String(m.id)] = m.catch_rate;
@@ -186,6 +188,16 @@ async function main() {
 
   const assets = path.join(root, 'android/app/src/main/assets/overlay');
   if (hub) {
+    // Each season's spawns, so the app can show only the season the game is in.
+    const { SEASONS, attachSeasons, hubForSeason, hubToDex, hubToHordeRegions } = await import('./hub-data.mjs');
+    const bySeason = Object.fromEntries(SEASONS.map((s) => {
+      const one = hubForSeason(hubRaw, s);
+      return [s, buildAreas(buildDexList(hubToDex(one)), hubToHordeRegions(one))];
+    }));
+    out.areas = attachSeasons(out.areas, bySeason);
+    const seasonal = out.areas.areas.filter((a) => a.seasons).length;
+    console.log(`seasonal areas: ${seasonal} of ${out.areas.areas.length}`);
+
     const debugAssets = path.join(root, 'android/app/src/debug/assets/overlay');
     writeJson(path.join(debugAssets, 'pokemon.json'), out.pokemon);
     writeJson(path.join(debugAssets, 'areas.json'), out.areas);

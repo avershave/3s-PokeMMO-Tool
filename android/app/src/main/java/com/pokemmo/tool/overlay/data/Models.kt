@@ -1,5 +1,6 @@
 package com.pokemmo.tool.overlay.data
 
+import com.pokemmo.tool.overlay.match.Season
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -35,8 +36,17 @@ data class Area(
     val region: String,
     val name: String,
     val key: String,
+    /** Every season's spawns together. */
     val spawns: List<Spawn> = emptyList(),
-)
+    /** Spawns per season ("Spring"…), only where they differ by season (personal Hub builds). */
+    val seasons: Map<String, List<Spawn>> = emptyMap(),
+) {
+    /** This area as it is in [season]; unchanged when the season is unknown or not listed. */
+    fun forSeason(season: Season?): Area {
+        val list = season?.let { seasons[it.name] } ?: return this
+        return copy(spawns = list)
+    }
+}
 
 @Serializable
 data class Tag(

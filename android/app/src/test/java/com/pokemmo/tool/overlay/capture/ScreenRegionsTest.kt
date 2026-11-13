@@ -25,6 +25,6 @@ class ScreenRegionsTest {
         assertEquals(60, r.left)
         assertEquals(0, r.top)
         assertEquals(520, r.right)
-        assertEquals(55, r.bottom)
+        assertEquals(85, r.bottom)
     }
 }

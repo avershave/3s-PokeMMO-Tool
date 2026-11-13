@@ -31,9 +31,11 @@ import com.pokemmo.tool.overlay.battle.OpponentGroup
 import com.pokemmo.tool.overlay.data.Area
 import com.pokemmo.tool.overlay.data.OverlayRepository
 import com.pokemmo.tool.overlay.match.RouteMatcher
+import com.pokemmo.tool.overlay.match.Season
 import com.pokemmo.tool.overlay.state.OverlayStateBus
 import com.pokemmo.tool.overlay.state.ScreenState
 import com.pokemmo.tool.overlay.state.ScreenStateMachine
+import com.pokemmo.tool.overlay.state.forSeason
 import com.pokemmo.tool.overlay.ui.OverlayWindows
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -80,6 +82,9 @@ class CaptureService : Service() {
 
     /** Region of the last confirmed overworld area; passed to the matcher as a tie-break hint. */
     @Volatile private var currentRegion: String? = null
+
+    /** Last season read from the clock line; null (every season's spawns) until one is. */
+    private var currentSeason: Season? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -266,12 +271,19 @@ class CaptureService : Service() {
             is ScreenState.Battle -> state.area?.let { currentRegion = it.region }
             ScreenState.Idle -> Unit
         }
+        // The clock line is hidden in battle; keep the last season read until another is.
+        reading.season?.let { currentSeason = it }
         OverlayStateBus.setBattleSuspected(reading.groups.isNotEmpty())
-        OverlayStateBus.publish(state)
+        OverlayStateBus.publish(state.forSeason(currentSeason))
     }
 
     /** What one frame showed. */
-    private class Reading(val route: Area?, val routeExact: Boolean, val groups: List<OpponentGroup>)
+    private class Reading(
+        val route: Area?,
+        val routeExact: Boolean,
+        val season: Season?,
+        val groups: List<OpponentGroup>,
+    )
 
     /** Only touched by the tick loop. */
     private var lastReading: Reading? = null
@@ -292,14 +304,17 @@ class CaptureService : Service() {
             val battleLines = engine.read(battleBmp, battleRect.left, battleRect.top)
             val t1 = System.nanoTime()
 
-            val routeHit = routeLines.firstNotNullOfOrNull { line ->
+            // The clock line names the season; it is never a place name.
+            val season = routeLines.firstNotNullOfOrNull { Season.find(it.text) }
+            val nameLines = routeLines.filter { Season.find(it.text) == null }
+            val routeHit = nameLines.firstNotNullOfOrNull { line ->
                 matcher.match(line.text, currentRegion)?.let { it to matcher.isExact(line.text, it) }
             }
             val route = routeHit?.first
             debugLog {
                 "frame ocr=${(t1 - t0) / 1_000_000}ms " +
                     "route=${routeLines.map { it.text }} " +
-                    "match=${route?.let { "${it.region}/${it.name}" }} exact=${routeHit?.second} battle=${battleLines.map { it.text }}"
+                    "match=${route?.let { "${it.region}/${it.name}" }} exact=${routeHit?.second} season=$season battle=${battleLines.map { it.text }}"
             }
             val opponents = parser.parse(battleLines)
             val groups = if (opponents.isEmpty()) {
@@ -316,7 +331,7 @@ class CaptureService : Service() {
                     )
                 }
             }
-            return Reading(route, routeHit?.second == true, groups)
+            return Reading(route, routeHit?.second == true, season, groups)
         } finally {
             routeBmp.recycle()
             battleBmp.recycle()

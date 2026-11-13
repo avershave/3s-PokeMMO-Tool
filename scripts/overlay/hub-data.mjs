@@ -34,9 +34,9 @@ const percent = (v) => {
 };
 
 /**
- * Hub entries -> UpdatedDex.json entries. Seasons are merged (the overlay has no season yet):
- * one location per place, method, level range and kind, with the highest rate seen and the times
- * of day it appears in any season.
+ * Hub entries -> UpdatedDex.json entries. Seasons are merged: one location per place, method,
+ * level range and kind, with the highest rate seen and the times of day it appears in any season.
+ * For one season's spawns, pass the result of [hubForSeason].
  */
 export function hubToDex(hub) {
   return hub.map((m) => {
@@ -98,6 +98,36 @@ export function hubToHordeRegions(hub) {
         return { name, defaultHordeSize: mostCommonSize(pokemon), pokemon };
       }),
     })),
+  };
+}
+
+export const SEASONS = ['Spring', 'Summer', 'Autumn', 'Winter'];
+
+/** Hub entries with only the rows found in [season] (plus the all-year "Any" rows). */
+export function hubForSeason(hub, season) {
+  return hub.map((m) => ({
+    ...m,
+    locations: (m.locations || []).filter((l) => l.season === season || l.season === 'Any'),
+  }));
+}
+
+/**
+ * Adds `seasons: {Spring: spawns, ...}` to each area of [areas] (built from every season) whose
+ * spawns differ between seasons. [bySeason] holds an areas file built from each season alone.
+ * Areas that are the same all year get no `seasons`, which keeps the file small.
+ */
+export function attachSeasons(areas, bySeason) {
+  const index = Object.fromEntries(SEASONS.map((s) => [
+    s, new Map((bySeason[s]?.areas || []).map((a) => [`${a.region}|${a.name}`, a.spawns])),
+  ]));
+  return {
+    ...areas,
+    areas: areas.areas.map((a) => {
+      const id = `${a.region}|${a.name}`;
+      const seasons = Object.fromEntries(SEASONS.map((s) => [s, index[s].get(id) || []]));
+      const lists = SEASONS.map((s) => JSON.stringify(seasons[s]));
+      return lists.every((l) => l === lists[0]) ? a : { ...a, seasons };
+    }),
   };
 }
 
