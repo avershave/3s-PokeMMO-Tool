@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -165,9 +166,9 @@ private fun DrawerBody(
     val perRow = with(density) { slotsPerRow((maxWidth - pad * 2).roundToPx(), (iconSize + gap).roundToPx()) }
     val slots = drawerSlots(model.items.size, perRow, showAll)
     Box(
-        // Always the full drawer width, so the card below can line up with it on every route.
+        // Only as wide as its icons (the window centres it), so a short row leaves no empty end.
         Modifier
-            .width(maxWidth)
+            .widthIn(max = maxWidth)
             .then(if (showAll) Modifier.heightIn(max = maxBodyHeight) else Modifier)
             .panelBg(panel, hanging(iconSize * 0.3f))
             .then(if (showAll) Modifier.verticalScroll(rememberScrollState()) else Modifier)
