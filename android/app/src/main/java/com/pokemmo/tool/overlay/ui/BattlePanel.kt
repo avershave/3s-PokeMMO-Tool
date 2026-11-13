@@ -21,7 +21,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.composed
+import androidx.compose.ui.input.pointer.pointerInteropFilter
+import androidx.compose.ui.platform.LocalViewConfiguration
+import android.view.MotionEvent
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -36,6 +44,41 @@ import com.pokemmo.tool.overlay.data.OverlayRepository
 /** Which value row is open in the battle panel: one at a time across all blocks. */
 data class PanelRow(val group: Int, val row: Int)
 
+/** Moves the panel window: [moveBy] is the finger's total travel since [start], in screen px. */
+interface PanelDrag {
+    fun start()
+    fun moveBy(dx: Float, dy: Float)
+    fun end()
+}
+
+/**
+ * A tap runs [onTap]; a press that travels past the touch slop drags the window through [drag]
+ * instead. Raw (screen) coordinates, because the window moves under the finger.
+ */
+@OptIn(ExperimentalComposeUiApi::class)
+private fun Modifier.dragOrTap(drag: PanelDrag?, onTap: () -> Unit): Modifier = composed {
+    val slop = LocalViewConfiguration.current.touchSlop
+    val t = remember { FloatArray(2) }
+    var dragging by remember { mutableStateOf(false) }
+    pointerInteropFilter { e ->
+        when (e.actionMasked) {
+            MotionEvent.ACTION_DOWN -> { t[0] = e.rawX; t[1] = e.rawY; dragging = false }
+            MotionEvent.ACTION_MOVE -> {
+                val dx = e.rawX - t[0]
+                val dy = e.rawY - t[1]
+                if (!dragging && drag != null && dx * dx + dy * dy > slop * slop) {
+                    dragging = true
+                    drag.start()
+                }
+                if (dragging) drag?.moveBy(dx, dy)
+            }
+            MotionEvent.ACTION_UP -> if (dragging) drag?.end() else onTap()
+            MotionEvent.ACTION_CANCEL -> if (dragging) drag?.end()
+        }
+        true
+    }
+}
+
 /** [PanelRow.row] of a block's catch section (its conditional balls). */
 const val CATCH_ROW = -1
 
@@ -46,7 +89,7 @@ const val CATCH_ROW = -1
  * weaknesses, each ball's catch chance at the HP read from the screen ([OpponentGroup.hp]);
  * [safari] adds the Safari Ball.
  * Tapping a block's name row folds the panel into a small tab of opponent icons ([collapsed]);
- * tapping the tab opens it again.
+ * tapping the tab opens it again. Dragging either moves the panel ([drag]).
  */
 @Composable
 fun BattlePanelView(
@@ -62,13 +105,14 @@ fun BattlePanelView(
     collapsed: Boolean,
     onCollapse: (Boolean) -> Unit,
     safari: Boolean = false,
+    drag: PanelDrag? = null,
 ) {
     PanelStyle(panel) {
         if (collapsed) {
             Row(
                 Modifier
                     .then(if (panel) Modifier.background(PanelBg, RoundedCornerShape(iconSize * 0.3f)) else Modifier)
-                    .clickable(remember { MutableInteractionSource() }, indication = null) { onCollapse(false) }
+                    .dragOrTap(drag) { onCollapse(false) }
                     .padding(horizontal = 6.dp, vertical = 3.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
@@ -88,7 +132,7 @@ fun BattlePanelView(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             groups.forEachIndexed { gi, g ->
-                OpponentBlock(g, repo, icons, iconSize, safari, expanded?.takeIf { it.group == gi }?.row, { onCollapse(true) }) { ri -> onRow(PanelRow(gi, ri)) }
+                OpponentBlock(g, repo, icons, iconSize, safari, drag, expanded?.takeIf { it.group == gi }?.row, { onCollapse(true) }) { ri -> onRow(PanelRow(gi, ri)) }
             }
         }
     }
@@ -101,6 +145,7 @@ private fun OpponentBlock(
     icons: IconCache,
     iconSize: Dp,
     safari: Boolean,
+    drag: PanelDrag?,
     expandedRow: Int?,
     onHeader: () -> Unit,
     onRow: (Int) -> Unit,
@@ -109,7 +154,7 @@ private fun OpponentBlock(
     val rows = buildCard(p.id, repo, null, null, g.count).rows
     Column {
         Row(
-            Modifier.clickable(remember { MutableInteractionSource() }, indication = null) { onHeader() },
+            Modifier.dragOrTap(drag) { onHeader() },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {

@@ -137,6 +137,22 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
     private var panelCollapsed by mutableStateOf(false)
     private var panelSafari by mutableStateOf(false)
 
+    // Where the player dragged the panel, from its default spot (BATTLE_PANEL's corner); saved.
+    private var panelDx = OverlaySettings.panelOffset.first
+    private var panelDy = OverlaySettings.panelOffset.second
+    private var panelParams: WindowManager.LayoutParams? = null
+    private val panelDrag = object : PanelDrag {
+        private var fromX = 0
+        private var fromY = 0
+        override fun start() { fromX = panelDx; fromY = panelDy }
+        override fun moveBy(dx: Float, dy: Float) = guarded {
+            panelDx = fromX + dx.toInt()
+            panelDy = fromY + dy.toInt()
+            placePanel()
+        }
+        override fun end() = OverlaySettings.setPanelOffset(panelDx, panelDy)
+    }
+
     private var panelBg by mutableStateOf(true) // OverlaySettings.panelBackground, applied live
     private var current: ScreenState = ScreenState.Idle
     private var battleSuspected = false
@@ -366,17 +382,29 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
                     collapsed = panelCollapsed,
                     onCollapse = { panelCollapsed = it },
                     safari = panelSafari,
+                    drag = panelDrag,
                 )
             }.also { panelView = it }
-            val p = baseParams(0, WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT)
-            p.x = rect.left
-            p.y = rect.top
-            show(view, p)
+            panelParams = baseParams(0, WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT)
+            placePanel()
         } else {
             hide(panelView)
         }
 
         if (vis.card) renderCard(m) else hide(cardView)
+    }
+
+    /** Puts the panel window at its default spot plus the drag offset, kept wholly on screen. */
+    private fun placePanel() {
+        val v = panelView ?: return
+        val p = panelParams ?: return
+        val m = metrics()
+        val rect = ScreenRegions.BATTLE_PANEL.toPixels(m.widthPixels, m.heightPixels)
+        p.x = (rect.left + panelDx).coerceIn(0, (m.widthPixels - v.width).coerceAtLeast(0))
+        p.y = (rect.top + panelDy).coerceIn(0, (m.heightPixels - v.height).coerceAtLeast(0))
+        panelDx = p.x - rect.left
+        panelDy = p.y - rect.top
+        show(v, p)
     }
 
     /** The card hangs under the drawer window with the same x and width. */
