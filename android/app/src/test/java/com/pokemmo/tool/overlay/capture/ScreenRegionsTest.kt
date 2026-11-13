@@ -22,6 +22,12 @@ class ScreenRegionsTest {
     }
 
     @Test
+    fun `the battle panel leaves both move columns free`() {
+        assertFalse(ScreenRegions.BATTLE_PANEL.intersects(ScreenRegions.MOVES_LEFT))
+        assertFalse(ScreenRegions.BATTLE_PANEL.intersects(ScreenRegions.MOVES_RIGHT))
+    }
+
+    @Test
     fun `touching edges do not count as intersecting`() {
         assertFalse(FRect(0f, 0f, 0.5f, 0.5f).intersects(FRect(0.5f, 0f, 1f, 0.5f)))
     }
