@@ -24,7 +24,7 @@ private fun PanelFrame(expanded: PanelRow?) {
         OpponentGroup(repo.pokemon(228)!!, 1, 30, 30, caught = false),
     )
     Box(Modifier.fillMaxSize().background(Color(0xFF7A6A52)).padding(10.dp)) {
-        BattlePanelView(groups, repo, icons, true, 194.dp, 420.dp, 28.dp, expanded) {}
+        BattlePanelView(groups, repo, icons, true, 194.dp, 420.dp, 28.dp, expanded, onRow = {}, collapsed = false, onCollapse = {})
     }
 }
 

@@ -190,6 +190,7 @@ val MARK_ART: Map<CatchMark, PixelArt> = mapOf(
 
 /** The drawer's open-tab chevron, from drawer.html. */
 val CHEVRON_UP = art(r(1, 5, 1, 1) to LINE, r(2, 4, 1, 1) to LINE, r(3, 3, 2, 1) to LINE, r(5, 4, 1, 1) to LINE, r(6, 5, 1, 1) to LINE)
+val CHEVRON_DOWN = art(r(1, 3, 1, 1) to LINE, r(2, 4, 1, 1) to LINE, r(3, 5, 2, 1) to LINE, r(5, 4, 1, 1) to LINE, r(6, 3, 1, 1) to LINE)
 
 /** Draws [art] on an 8x8 grid with hard edges. */
 @Composable

@@ -134,6 +134,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
     private var cardMaxHeightDp by mutableStateOf(300.dp)
     private var panelMaxDp by mutableStateOf(DpSize(150.dp, 300.dp))
     private var panelRow by mutableStateOf<PanelRow?>(null)
+    private var panelCollapsed by mutableStateOf(false)
 
     private var panelBg by mutableStateOf(true) // OverlaySettings.panelBackground, applied live
     private var current: ScreenState = ScreenState.Idle
@@ -161,7 +162,10 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
         if (moved) drawerShowAll = false
         // A route change or a confirmed battle closes the card; the drawer stays as it was.
         if (moved || prev::class != s::class) closeCard()
-        if (prev::class != s::class) panelRow = null // each battle starts with every row closed
+        if (prev::class != s::class) {
+            panelRow = null // each battle starts with every row closed
+            panelCollapsed = false // and with the panel open, even if the last one was folded
+        }
         render()
     }
 
@@ -357,6 +361,8 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
                     iconSize = iconDp,
                     expanded = panelRow,
                     onRow = { r -> panelRow = if (panelRow == r) null else r },
+                    collapsed = panelCollapsed,
+                    onCollapse = { panelCollapsed = it },
                 )
             }.also { panelView = it }
             val p = baseParams(0, WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT)

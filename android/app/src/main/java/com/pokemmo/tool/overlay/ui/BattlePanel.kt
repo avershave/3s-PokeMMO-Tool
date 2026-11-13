@@ -1,6 +1,8 @@
 package com.pokemmo.tool.overlay.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -35,6 +38,8 @@ data class PanelRow(val group: Int, val row: Int)
  * Left-side battle panel, the same content as the desktop Live Battle view: icon, name and ×N, the
  * caught ball, types, catch rate, 4× and 2× weaknesses, and value rows that open inline.
  * Mixed hordes stack one block per species; the panel scrolls if they don't fit.
+ * Tapping a block's name row folds the panel into a small tab of opponent icons ([collapsed]);
+ * tapping the tab opens it again.
  */
 @Composable
 fun BattlePanelView(
@@ -47,8 +52,24 @@ fun BattlePanelView(
     iconSize: Dp,
     expanded: PanelRow?,
     onRow: (PanelRow) -> Unit,
+    collapsed: Boolean,
+    onCollapse: (Boolean) -> Unit,
 ) {
     PanelStyle(panel) {
+        if (collapsed) {
+            Row(
+                Modifier
+                    .then(if (panel) Modifier.background(PanelBg, RoundedCornerShape(iconSize * 0.3f)) else Modifier)
+                    .clickable(remember { MutableInteractionSource() }, indication = null) { onCollapse(false) }
+                    .padding(horizontal = 6.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                groups.forEach { PixelIcon(icons, it.pokemon.id, iconSize * 0.8f) }
+                PixelArtView(CHEVRON_DOWN, iconSize * 0.4f)
+            }
+            return@PanelStyle
+        }
         Column(
             Modifier
                 .width(width)
@@ -59,7 +80,7 @@ fun BattlePanelView(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             groups.forEachIndexed { gi, g ->
-                OpponentBlock(g, repo, icons, iconSize, expanded?.takeIf { it.group == gi }?.row) { ri -> onRow(PanelRow(gi, ri)) }
+                OpponentBlock(g, repo, icons, iconSize, expanded?.takeIf { it.group == gi }?.row, { onCollapse(true) }) { ri -> onRow(PanelRow(gi, ri)) }
             }
         }
     }
@@ -72,12 +93,17 @@ private fun OpponentBlock(
     icons: IconCache,
     iconSize: Dp,
     expandedRow: Int?,
+    onHeader: () -> Unit,
     onRow: (Int) -> Unit,
 ) {
     val p = g.pokemon
     val rows = buildCard(p.id, repo, null, null, g.count).rows
     Column {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            Modifier.clickable(remember { MutableInteractionSource() }, indication = null) { onHeader() },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             PixelIcon(icons, p.id, iconSize)
             Text(p.name, color = PanelText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             if (g.count > 1) Text("×${g.count}", color = PanelMuted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
