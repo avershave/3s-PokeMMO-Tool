@@ -5,9 +5,10 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing;
+using System.Drawing; // Rectangle/Point/Color are cross-platform (System.Drawing.Primitives)
+#if WINDOWS
 using System.Drawing.Imaging;
-using ImgFormat = System.Drawing.Imaging.ImageFormat; // avoid clash with Tesseract.ImageFormat
+#endif
 using System.Globalization;
 using System.IO;
 using System.Net;
@@ -181,9 +182,6 @@ partial class LiveRouteOCR
 
     static async Task Main(string[] args)
     {
-#if !WINDOWS
-        AppContext.SetSwitch("System.Drawing.EnableUnixSupport", true);
-#endif
         var listOnly = args.Any(a => string.Equals(a, "--list-windows", StringComparison.OrdinalIgnoreCase));
         if (listOnly)
         {
@@ -552,7 +550,7 @@ partial class LiveRouteOCR
 
                 var rBase = roi.ToRectangle(cw, ch);
                 var r = ZoomRectangle(rBase, cw, ch, CaptureZoom);
-                using var crop = new Bitmap(r.Width, r.Height, PixelFormat.Format24bppRgb);
+                using var crop = new RgbImage(r.Width, r.Height);
                 if (!CaptureRegionInto(crop, hWnd, pt, r))
                 {
                     LogBattle("Capture failed; retrying.");
@@ -564,7 +562,7 @@ partial class LiveRouteOCR
                     try
                     {
                         using var fs = new FileStream(RouteCapPath, FileMode.Create, FileAccess.Write, FileShare.Read);
-                        crop.Save(fs, ImgFormat.Png);
+                        crop.SavePng(fs);
                     }
                     catch (Exception ex) { Log($"Capture save failed: {ex.Message}"); }
                     Log($"Saved capture: {RouteCapPath}");
@@ -578,7 +576,7 @@ partial class LiveRouteOCR
                 float conf = 0f;
 
                 // Keep one preprocessed image for preview even if we miss
-                Bitmap? prePreview = null;
+                RgbImage? prePreview = null;
 
                 if (engine != null)
                 {
@@ -588,9 +586,9 @@ partial class LiveRouteOCR
 
                         // keep the *last* tried pre as a preview if nothing else hits
                         prePreview?.Dispose();
-                        prePreview = (Bitmap)pre.Clone();
+                        prePreview = pre.Clone();
 
-                        using var pix = PixFromBitmap(pre);
+                        using var pix = PixFromImage(pre);
                         using var page = engine.Process(pix, pass.Psm);
 
                         var raw = (page.GetText() ?? "").Trim();
@@ -606,7 +604,7 @@ partial class LiveRouteOCR
                             if (ImageDebugEnabled)
                             {
                                 using (var fs = new FileStream(RoutePrePath, FileMode.Create, FileAccess.Write, FileShare.Read))
-                                    pre.Save(fs, ImgFormat.Png);
+                                    pre.SavePng(fs);
                                 Log($"Saved preprocessed: {RoutePrePath}");
                             }
 
@@ -624,7 +622,7 @@ partial class LiveRouteOCR
                         try
                         {
                             using var fs = new FileStream(RoutePrePath, FileMode.Create, FileAccess.Write, FileShare.Read);
-                            prePreview.Save(fs, ImgFormat.Png);
+                            prePreview.SavePng(fs);
                             Log($"Saved preprocessed (miss): {RoutePrePath}");
                         }
                         catch { }
@@ -764,7 +762,7 @@ partial class LiveRouteOCR
                 int cw = Math.Max(1, rc.Right - rc.Left), ch = Math.Max(1, rc.Bottom - rc.Top);
                 var rBase = roi.ToRectangle(cw, ch);
                 var r = ZoomRectangle(rBase, cw, ch, BattleCaptureZoom);
-                using var crop = new Bitmap(r.Width, r.Height, PixelFormat.Format24bppRgb);
+                using var crop = new RgbImage(r.Width, r.Height);
                 if (!CaptureRegionInto(crop, hWnd, pt, r))
                 {
                     LogBattle("Capture failed; retrying.");
@@ -776,7 +774,7 @@ partial class LiveRouteOCR
                     try
                     {
                         using var fs = new FileStream(BattleCapPath, FileMode.Create, FileAccess.Write, FileShare.Read);
-                        crop.Save(fs, ImgFormat.Png);
+                        crop.SavePng(fs);
                     }
                     catch (Exception ex) { LogBattle($"Capture save failed: {ex.Message}"); }
                     LogBattle($"Saved capture: {BattleCapPath}");
@@ -785,8 +783,8 @@ partial class LiveRouteOCR
                 var nameList = new List<string>();
                 string rawUsed = "";
                 float conf = 0f;
-                Bitmap? prePreview = null;
-                Bitmap? bestPre = null;
+                RgbImage? prePreview = null;
+                RgbImage? bestPre = null;
                 if (engine != null)
                 {
                     using var trimmed = RemoveBattleHud(crop);
@@ -795,8 +793,8 @@ partial class LiveRouteOCR
                     {
                         using var pre = PreprocessBattle(trimmed, pass.Threshold, pass.Upsample);
                         prePreview?.Dispose();
-                        prePreview = (Bitmap)pre.Clone();
-                        using var pix = PixFromBitmap(pre);
+                        prePreview = pre.Clone();
+                        using var pix = PixFromImage(pre);
                         using var page = engine.Process(pix, pass.Psm);
                         var raw = (page.GetText() ?? "").Trim();
                         var cleanedAll = Regex.Replace(raw, "[^A-Za-z0-9'\\- \\r\\n]", " ").Trim();
@@ -833,7 +831,7 @@ partial class LiveRouteOCR
                                 conf = passConf;
                                 rawUsed = raw;
                                 bestPre?.Dispose();
-                                bestPre = (Bitmap)pre.Clone();
+                                bestPre = pre.Clone();
                             }
                             if (nameList.Count >= 2) break;
                         }
@@ -846,7 +844,7 @@ partial class LiveRouteOCR
                         try
                         {
                             using var fs = new FileStream(BattlePrePath, FileMode.Create, FileAccess.Write, FileShare.Read);
-                            prePreview.Save(fs, ImgFormat.Png);
+                            prePreview.SavePng(fs);
                             LogBattle($"Saved preprocessed (miss): {BattlePrePath}");
                         }
                         catch { }
@@ -860,7 +858,7 @@ partial class LiveRouteOCR
                         try
                         {
                             using var fs = new FileStream(BattlePrePath, FileMode.Create, FileAccess.Write, FileShare.Read);
-                            bestPre.Save(fs, ImgFormat.Png);
+                            bestPre.SavePng(fs);
                             LogBattle($"Saved preprocessed: {BattlePrePath}");
                         }
                         catch { }
@@ -1002,87 +1000,74 @@ partial class LiveRouteOCR
         return plan;
     }
 
-    static Bitmap Preprocess(Bitmap src, int threshold, int upsample)
+    static RgbImage Preprocess(RgbImage src, int threshold, int upsample)
     {
-        var gray = new Bitmap(src.Width, src.Height, PixelFormat.Format24bppRgb);
-        using (var g = Graphics.FromImage(gray)) g.DrawImage(src, 0, 0);
-        for (int y = 0; y < gray.Height; y++)
-            for (int x = 0; x < gray.Width; x++)
-            {
-                var c = gray.GetPixel(x, y);
-                byte v = (byte)(0.299 * c.R + 0.587 * c.G + 0.114 * c.B);
-                gray.SetPixel(x, y, Color.FromArgb(v, v, v));
-            }
-
+        // Grayscale (BT.601 luma), nearest-neighbour upscale, then binarize.
         int upX = Math.Max(1, upsample);
-        var up = new Bitmap(gray.Width * upX, gray.Height * upX, PixelFormat.Format24bppRgb);
-        using (var g = Graphics.FromImage(up))
-        {
-            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
-            g.DrawImage(gray, new Rectangle(0, 0, up.Width, up.Height),
-                        new Rectangle(0, 0, gray.Width, gray.Height), GraphicsUnit.Pixel);
-        }
-        gray.Dispose();
+        int w = src.Width, h = src.Height;
+        var gray = new byte[w * h];
+        var s = src.Data;
+        for (int i = 0, p = 0; i < gray.Length; i++, p += 3)
+            gray[i] = (byte)(0.299 * s[p + 2] + 0.587 * s[p + 1] + 0.114 * s[p]);
 
-        var bin = new Bitmap(up.Width, up.Height, PixelFormat.Format24bppRgb);
-        for (int y = 0; y < up.Height; y++)
-            for (int x = 0; x < up.Width; x++)
+        var bin = new RgbImage(w * upX, h * upX);
+        var d = bin.Data;
+        for (int y = 0; y < bin.Height; y++)
+        {
+            int srcRow = (y / upX) * w;
+            int dstRow = y * bin.Stride;
+            for (int x = 0; x < bin.Width; x++)
             {
-                var c = up.GetPixel(x, y);
-                int v = (c.R + c.G + c.B) / 3;
-                byte o = (byte)(v > threshold ? 255 : 0);
-                bin.SetPixel(x, y, Color.FromArgb(o, o, o));
+                byte o = (byte)(gray[srcRow + x / upX] > threshold ? 255 : 0);
+                int q = dstRow + x * 3;
+                d[q] = o; d[q + 1] = o; d[q + 2] = o;
             }
-        up.Dispose();
+        }
         return bin;
     }
 
-static Bitmap PreprocessBattle(Bitmap src, int threshold, int upsample)
+    static RgbImage PreprocessBattle(RgbImage src, int threshold, int upsample)
     {
+        // Nearest-neighbour upscale, keeping only near-white (text) pixels.
         int upX = Math.Max(1, upsample);
-        var up = new Bitmap(src.Width * upX, src.Height * upX, PixelFormat.Format24bppRgb);
-        using (var g = Graphics.FromImage(up))
+        var s = src.Data;
+        var bin = new RgbImage(src.Width * upX, src.Height * upX);
+        var d = bin.Data;
+        for (int y = 0; y < bin.Height; y++)
         {
-            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
-            g.DrawImage(src, new Rectangle(0, 0, up.Width, up.Height),
-                        new Rectangle(0, 0, src.Width, src.Height), GraphicsUnit.Pixel);
-        }
-
-        var bin = new Bitmap(up.Width, up.Height, PixelFormat.Format24bppRgb);
-        for (int y = 0; y < up.Height; y++)
-            for (int x = 0; x < up.Width; x++)
+            int srcRow = (y / upX) * src.Stride;
+            int dstRow = y * bin.Stride;
+            for (int x = 0; x < bin.Width; x++)
             {
-                var c = up.GetPixel(x, y);
-                bool white = c.R >= threshold && c.G >= threshold && c.B >= threshold;
+                int p = srcRow + (x / upX) * 3;
+                bool white = s[p + 2] >= threshold && s[p + 1] >= threshold && s[p] >= threshold;
                 byte o = (byte)(white ? 255 : 0);
-                bin.SetPixel(x, y, Color.FromArgb(o, o, o));
+                int q = dstRow + x * 3;
+                d[q] = o; d[q + 1] = o; d[q + 2] = o;
             }
-        up.Dispose();
+        }
         return bin;
     }
 
-    static unsafe Bitmap RemoveBattleHud(Bitmap src)
+    static RgbImage RemoveBattleHud(RgbImage src)
     {
         // Detect bright horizontal bars (HP bars) and crop the image just above
-        // the lowest detected bar. Uses LockBits for speed and scans only once.
+        // the lowest detected bar. Scans the image only once.
         var bars = new List<(int Start, int End)>();
-
-        var rect = new Rectangle(0, 0, src.Width, src.Height);
-        var data = src.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
-        int stride = data.Stride;
+        var data = src.Data;
+        int stride = src.Stride;
         int brightNeed = (int)(src.Width * 0.5); // at least half the row must be bright
 
-        byte* basePtr = (byte*)data.Scan0;
         int streak = 0, start = 0;
         for (int y = 0; y < src.Height; y++)
         {
-            byte* row = basePtr + y * stride;
+            int row = y * stride;
             int bright = 0;
             for (int x = 0; x < src.Width; x++)
             {
-                byte b = row[x * 3];
-                byte g = row[x * 3 + 1];
-                byte r = row[x * 3 + 2];
+                byte b = data[row + x * 3];
+                byte g = data[row + x * 3 + 1];
+                byte r = data[row + x * 3 + 2];
                 if (r >= 230 && g >= 230 && b >= 230) bright++;
             }
             if (bright >= brightNeed)
@@ -1097,35 +1082,18 @@ static Bitmap PreprocessBattle(Bitmap src, int threshold, int upsample)
             }
         }
         if (streak >= 2) bars.Add((start, src.Height - 1));
-        src.UnlockBits(data);
 
         int cutoff = src.Height;
         if (bars.Count > 0) cutoff = bars[^1].Start;
 
-        var trimRect = new Rectangle(0, 0, src.Width, Math.Max(1, cutoff));
-        var trimmed = src.Clone(trimRect, PixelFormat.Format24bppRgb);
+        var trimmed = src.CropTop(Math.Max(1, cutoff));
 
-        if (bars.Count > 0)
+        foreach (var bar in bars)
         {
-            var tData = trimmed.LockBits(new Rectangle(0, 0, trimmed.Width, trimmed.Height), ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
-            byte* tBase = (byte*)tData.Scan0;
-            foreach (var bar in bars)
-            {
-                if (bar.End >= cutoff) continue; // removed by cropping
-                int s = Math.Max(0, bar.Start - 1);
-                int e = Math.Min(trimmed.Height - 1, bar.End + 1);
-                for (int y = s; y <= e; y++)
-                {
-                    byte* tRow = tBase + y * tData.Stride;
-                    for (int x = 0; x < trimmed.Width; x++)
-                    {
-                        tRow[x * 3] = 0;
-                        tRow[x * 3 + 1] = 0;
-                        tRow[x * 3 + 2] = 0;
-                    }
-                }
-            }
-            trimmed.UnlockBits(tData);
+            if (bar.End >= cutoff) continue; // removed by cropping
+            int s = Math.Max(0, bar.Start - 1);
+            int e = Math.Min(trimmed.Height - 1, bar.End + 1);
+            Array.Clear(trimmed.Data, s * trimmed.Stride, (e - s + 1) * trimmed.Stride);
         }
 
         return trimmed;
@@ -1151,12 +1119,7 @@ static Bitmap PreprocessBattle(Bitmap src, int threshold, int upsample)
         return true;
     }
 
-    static Pix PixFromBitmap(Bitmap bmp)
-    {
-        using var ms = new MemoryStream();
-        bmp.Save(ms, ImgFormat.Png);
-        return Pix.LoadFromMemory(ms.ToArray());
-    }
+    static Pix PixFromImage(RgbImage img) => Pix.LoadFromMemory(img.ToPngBytes());
 
     static string ExtractLocation(string raw)
     {
@@ -1333,14 +1296,25 @@ static Bitmap PreprocessBattle(Bitmap src, int threshold, int upsample)
         return h;
     }
 
-    static bool CaptureRegionInto(Bitmap target, IntPtr hWnd, POINT origin, Rectangle rect)
+    static bool CaptureRegionInto(RgbImage target, IntPtr hWnd, POINT origin, Rectangle rect)
     {
 #if WINDOWS
         int sx = origin.X + rect.Left;
         int sy = origin.Y + rect.Top;
-        using (var g = Graphics.FromImage(target))
+        using var bmp = new Bitmap(target.Width, target.Height, PixelFormat.Format24bppRgb);
+        using (var g = Graphics.FromImage(bmp))
         {
-            g.CopyFromScreen(sx, sy, 0, 0, target.Size, CopyPixelOperation.SourceCopy);
+            g.CopyFromScreen(sx, sy, 0, 0, bmp.Size, CopyPixelOperation.SourceCopy);
+        }
+        var data = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+        try
+        {
+            for (int y = 0; y < target.Height; y++)
+                Marshal.Copy(data.Scan0 + y * data.Stride, target.Data, y * target.Stride, target.Stride);
+        }
+        finally
+        {
+            bmp.UnlockBits(data);
         }
         return true;
 #else
