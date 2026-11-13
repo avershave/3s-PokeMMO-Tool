@@ -10,6 +10,7 @@ import android.util.DisplayMetrics
 import android.util.Log
 import android.view.Display
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import androidx.compose.runtime.getValue
@@ -28,6 +29,7 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.pokemmo.tool.overlay.battle.OpponentGroup
 import com.pokemmo.tool.overlay.OverlaySettings
+import com.pokemmo.tool.overlay.capture.IntRect
 import com.pokemmo.tool.overlay.capture.ScreenRegions
 import com.pokemmo.tool.overlay.data.Area
 import com.pokemmo.tool.overlay.data.OverlayRepository
@@ -119,9 +121,11 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
     private fun onState(s: ScreenState) = guarded {
         val prev = current
         current = s
-        if (areaOf(prev) != areaOf(s)) drawerShowAll = false
+        // A season read changes the area's spawns but not the place, so it closes nothing.
+        val moved = !samePlace(areaOf(prev), areaOf(s))
+        if (moved) drawerShowAll = false
         // A route change or a confirmed battle closes the card; the drawer stays as it was.
-        if (areaOf(prev) != areaOf(s) || prev::class != s::class) closeCard()
+        if (moved || prev::class != s::class) closeCard()
         if (prev::class != s::class) panelRow = null // each battle starts with every row closed
         render()
     }
@@ -187,6 +191,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
     // Measured widths of the centred windows; used to compute x ourselves (see centredX).
     private var drawerWidthPx = 0
     private var drawerHeightPx = 0
+    private var drawerXPx = 0
 
     // Keep this init block AFTER every field above. The collector runs on Dispatchers.Main.immediate,
     // so while the object is still being constructed on Main it renders the current Idle state
@@ -285,6 +290,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
             val p = baseParams(0, WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT)
             p.x = centredX((rect.left + rect.right) / 2, drawerWidthPx)
             p.y = 0
+            drawerXPx = p.x
             show(view, p)
         } else {
             hide(drawerView)
@@ -352,8 +358,31 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
                     onRow = { i -> cardRow = if (cardRow == i) null else i },
                 )
             }
-        }.also { cardView = it }
-        val p = baseParams(0, WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT)
+        }.also {
+            cardView = it
+            // A tap anywhere but the card or the drawer closes the card. The tap still reaches the
+            // game as well: the overlay only hears that it happened.
+            it.setOnTouchListener { _, e ->
+                if (e.actionMasked != MotionEvent.ACTION_OUTSIDE) return@setOnTouchListener false
+                guarded {
+                    val drawer = if (drawerView?.let { v -> v in added } == true) {
+                        IntRect(drawerXPx, 0, drawerXPx + drawerWidthPx, drawerHeightPx)
+                    } else {
+                        null
+                    }
+                    if (openCard != null && outsideTapClosesCard(e.rawX, e.rawY, drawer)) {
+                        closeCard()
+                        render()
+                    }
+                }
+                true
+            }
+        }
+        val p = baseParams(
+            WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+        )
         p.x = place.x
         p.y = place.y
         show(view, p)
