@@ -12,6 +12,21 @@ class OverlaySettingsTest {
         override fun putBoolean(k: String, v: Boolean) {
             map[k] = v
         }
+        val ints = HashMap<String, Int>()
+        override fun getInt(k: String, d: Int) = ints[k] ?: d
+        override fun putInt(k: String, v: Int) {
+            ints[k] = v
+        }
+    }
+
+    @Test
+    fun `the panel offset starts at zero and is saved`() {
+        val store = FakeStore()
+        OverlaySettings.init(store)
+        assertEquals(0 to 0, OverlaySettings.panelOffset)
+        OverlaySettings.setPanelOffset(-120, 40)
+        OverlaySettings.init(store)
+        assertEquals(-120 to 40, OverlaySettings.panelOffset)
     }
 
     @Test

@@ -8,6 +8,8 @@ package com.pokemmo.tool.overlay.battle
  * Measured on a Pixel 9 Pro XL (2244 px wide: inner bar 277 px) and a 2392 px reference screenshot
  * (horde: 0.124 of the width), so the inner length is taken as a fraction of the screen width.
  */
+import kotlin.math.roundToInt
+
 object HpBar {
     const val INNER_WIDTH = 0.1234f
 
@@ -51,7 +53,8 @@ object HpBar {
             ?: return null
         val len = lengths.sorted()[lengths.size / 2]
         val fraction = len / (INNER_WIDTH * screenW)
-        return if (fraction > 1.1f) null else fraction.coerceIn(0f, 1f)
+        // Whole percent: sub-pixel wobble between frames would otherwise make every tick a new state.
+        return if (fraction > 1.1f) null else (fraction.coerceIn(0f, 1f) * 100).roundToInt() / 100f
     }
 
     private fun hasTrackAbove(pixels: IntArray, w: Int, x: Int, top: Int): Boolean {
