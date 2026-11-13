@@ -13,10 +13,14 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -40,6 +44,37 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+
+/**
+ * Root of each overlay window. Android first measures a wrap-content window at 320 dp wide
+ * (config_prefDialogWidth) and keeps that unless the content reports it is too small; Compose
+ * never does, so wide content (the card, a full drawer) was cut to 720 px on a 2244 px screen.
+ * The content is measured here against the whole screen and its real size reported.
+ */
+private class WideWindowFrame(context: Context, val compose: ComposeView) : FrameLayout(context) {
+    init {
+        addView(compose)
+    }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val mode = MeasureSpec.getMode(widthMeasureSpec)
+        val size = MeasureSpec.getSize(widthMeasureSpec)
+        val screen = resources.displayMetrics.let { maxOf(it.widthPixels, it.heightPixels) }
+        val childWidth = if (mode == MeasureSpec.AT_MOST) {
+            MeasureSpec.makeMeasureSpec(maxOf(size, screen), MeasureSpec.AT_MOST)
+        } else {
+            widthMeasureSpec
+        }
+        compose.measure(childWidth, heightMeasureSpec)
+        setMeasuredDimension(
+            resolveSizeAndState(compose.measuredWidth, widthMeasureSpec, compose.measuredState),
+            resolveSizeAndState(
+                compose.measuredHeight, heightMeasureSpec,
+                compose.measuredState shl MEASURED_HEIGHT_STATE_SHIFT,
+            ),
+        )
+    }
+}
 
 /** Minimal owner so ComposeViews can live in a Service-hosted window. */
 class OverlayLifecycleOwner : LifecycleOwner, SavedStateRegistryOwner {
@@ -105,9 +140,9 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
     private var battleSuspected = false
     private var disposed = false
 
-    private var drawerView: ComposeView? = null
-    private var panelView: ComposeView? = null
-    private var cardView: ComposeView? = null
+    private var drawerView: View? = null
+    private var panelView: View? = null
+    private var cardView: View? = null
 
     private val callbacks = object : ComponentCallbacks {
         override fun onConfigurationChanged(newConfig: Configuration) {
@@ -178,11 +213,18 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
     /** Left edge that centres a window of [widthPx] on [centre]; never off the left of the screen. */
     private fun centredX(centre: Int, widthPx: Int) = (centre - widthPx / 2).coerceAtLeast(0)
 
-    private fun newView(content: @androidx.compose.runtime.Composable () -> Unit): ComposeView =
-        ComposeView(context).also {
+    /** Hosts [content] drawn at [ScreenRegions.UI_SCALE]: every dp and sp inside is that much bigger. */
+    private fun newView(content: @androidx.compose.runtime.Composable () -> Unit): View =
+        WideWindowFrame(context, ComposeView(context)).also {
             it.setViewTreeLifecycleOwner(owner)
             it.setViewTreeSavedStateRegistryOwner(owner)
-            it.setContent(content)
+            it.compose.setContent {
+                val d = LocalDensity.current
+                CompositionLocalProvider(
+                    LocalDensity provides Density(d.density * ScreenRegions.UI_SCALE, d.fontScale),
+                    content = content,
+                )
+            }
         }
 
     // isAttachedToWindow lags addView by a traversal, so track adds explicitly.
@@ -244,7 +286,9 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
     private fun renderUnsafe() {
         if (disposed) return
         val m = metrics()
-        val density = m.density
+        // Px to dp inside the windows, which draw at UI_SCALE (see newView). Icons are sized in px
+        // already (whole multiples of the art), so they convert with the same density.
+        val density = m.density * ScreenRegions.UI_SCALE
         val s = current
 
         val vis = visibility(s, battleSuspected, drawerOpen, openCard != null)
@@ -333,11 +377,12 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
             hide(cardView)
             return
         }
-        val density = m.density
+        val density = m.density * ScreenRegions.UI_SCALE
         val area = ScreenRegions.DRAWER_AREA.toPixels(m.widthPixels, m.heightPixels)
         val place = cardPlacement(
             drawerBottom = drawerHeightPx,
             area = area,
+            screenW = m.widthPixels,
             screenH = m.heightPixels,
             maxBottom = (ScreenRegions.CARD_MAX_BOTTOM * m.heightPixels).toInt(),
         )

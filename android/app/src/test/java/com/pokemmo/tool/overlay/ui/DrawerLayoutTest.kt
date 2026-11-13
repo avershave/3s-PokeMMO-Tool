@@ -7,15 +7,15 @@ import org.junit.Test
 class DrawerLayoutTest {
     @Test
     fun `icon size snaps to whole multiples of the 32 px art`() {
-        // Austin's Pixel at "High": 2.5% of 2244 is 56 px, nearest whole scale is 2x.
-        assertEquals(64, iconSizePx(2244, 1008))
-        assertEquals(64, iconSizePx(1008, 2244))
-        // Full resolution 3120: 78 px -> 2x.
-        assertEquals(64, iconSizePx(3120, 1440))
-        // Big tablet: 2.5% of 4000 = 100 -> 3x.
-        assertEquals(96, iconSizePx(4000, 2000))
+        // The Pixel at "High": 3.75% of 2244 is 84 px, nearest whole scale is 3x.
+        assertEquals(96, iconSizePx(2244, 1008))
+        assertEquals(96, iconSizePx(1008, 2244))
+        // Full resolution 3120: 117 px -> 4x.
+        assertEquals(128, iconSizePx(3120, 1440))
+        // Big tablet: 3.75% of 4000 = 150 -> 5x.
+        assertEquals(160, iconSizePx(4000, 2000))
         // Small screen: below one whole scale, keep it exact.
-        assertEquals(25, iconSizePx(1000, 500))
+        assertEquals(30, iconSizePx(800, 400))
     }
 
     @Test

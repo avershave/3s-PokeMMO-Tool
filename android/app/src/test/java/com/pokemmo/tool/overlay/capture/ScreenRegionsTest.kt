@@ -2,6 +2,7 @@ package com.pokemmo.tool.overlay.capture
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ScreenRegionsTest {
@@ -12,6 +13,12 @@ class ScreenRegionsTest {
         // Battle: the panel is shown; the drawer and card are hidden.
         assertFalse(ScreenRegions.BATTLE_PANEL.intersects(ScreenRegions.BATTLE))
         assertFalse(ScreenRegions.BATTLE_PANEL.intersects(ScreenRegions.ROUTE))
+    }
+
+    @Test
+    fun `the battle panel stays above the Fight button`() {
+        // Fight starts at about 72% of the height on the left (horde reference screenshot).
+        assertTrue(ScreenRegions.BATTLE_PANEL.bottom <= 0.71f)
     }
 
     @Test
