@@ -34,3 +34,21 @@ resources/telemetry.config.json
 temp_*.txt
 tmp_*.txt
 patchnotes.txt
+
+# Brainstorming mockups and reference screenshots
+.superpowers/
+
+# Android overlay
+android/app/src/main/assets/overlay/
+android/.gradle/
+android/**/build/
+android/local.properties
+android/.kotlin/
+
+# Game ROMs (never commit)
+roms/
+*.nds
+
+# Personal-use PokeMMO Hub data (no licence; never commit): npm run overlay:hub
+.local/
+android/app/src/debug/assets/

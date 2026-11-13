@@ -13,6 +13,10 @@
     "electron:dev:debug": "concurrently -k -s first \"vite build --watch --emptyOutDir\" \"wait-on -v file:dist/index.html && cross-env ELECTRON_RUN_AS_NODE= ELECTRON_DIST_WATCH=1 OPEN_DEVTOOLS=1 electron .\"",
     "electron:dev:server": "concurrently -k -s first \"vite --strictPort\" \"wait-on -v http-get://localhost:5173/index.html http-get://localhost:5173/src/main.jsx && cross-env ELECTRON_RUN_AS_NODE= ELECTRON_START_URL=http://localhost:5173 OPEN_DEVTOOLS=1 electron .\"",
     "build": "vite build",
+    "test": "vitest run",
+    "overlay:build": "vite-node scripts/overlay/build-overlay-data.mjs",
+    "overlay:icons": "node scripts/overlay/extract-icons.mjs",
+    "overlay:hub": "node scripts/overlay/fetch-hub.mjs",
     "start": "cross-env ELECTRON_RUN_AS_NODE= electron .",
     "build:helper": "node ./scripts/run-build-helper.js",
     "clean": "rimraf release",
@@ -26,7 +30,9 @@
     "release:minor": "npm version minor -m \"v%s\" && npm run push-release",
     "release:major": "npm version major -m \"v%s\" && npm run push-release",
     "publish": "npm run clean && npm run build:helper && npm run build && electron-builder --publish always",
-    "telemetry:stats": "node tools/install-telemetry-stats.mjs"
+    "telemetry:stats": "node tools/install-telemetry-stats.mjs",
+    "overlay:smogon": "node scripts/overlay/fetch-smogon.mjs",
+    "overlay:bump": "node scripts/overlay/bump-version.mjs"
   },
   "build": {
     "appId": "com.pokemmo.tool",
@@ -145,7 +151,10 @@
     "electron": "^45.2.3",
     "electron-builder": "^26.18.0",
     "rimraf": "^6.1.4",
+    "sharp": "^0.35.5",
     "vite": "^8.3.6",
+    "vite-node": "^6.0.0",
+    "vitest": "^5.1.0",
     "wait-on": "^9.5.1",
     "xlsx": "^0.18.5"
   }
