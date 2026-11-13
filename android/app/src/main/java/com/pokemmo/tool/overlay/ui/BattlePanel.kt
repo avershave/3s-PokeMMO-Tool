@@ -28,16 +28,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pokemmo.tool.overlay.battle.BallChip
+import com.pokemmo.tool.overlay.battle.Catch
 import com.pokemmo.tool.overlay.battle.OpponentGroup
 import com.pokemmo.tool.overlay.data.OverlayRepository
 
 /** Which value row is open in the battle panel: one at a time across all blocks. */
 data class PanelRow(val group: Int, val row: Int)
 
+/** [PanelRow.row] of a block's catch section (its conditional balls). */
+const val CATCH_ROW = -1
+
 /**
  * Left-side battle panel, the same content as the desktop Live Battle view: icon, name and ×N, the
  * caught ball, types, catch rate, 4× and 2× weaknesses, and value rows that open inline.
- * Mixed hordes stack one block per species; the panel scrolls if they don't fit.
+ * Mixed hordes stack one block per species; the panel scrolls if they don't fit. Under the
+ * weaknesses, each ball's catch chance at the HP read from the screen ([OpponentGroup.hp]);
+ * [safari] adds the Safari Ball.
  * Tapping a block's name row folds the panel into a small tab of opponent icons ([collapsed]);
  * tapping the tab opens it again.
  */
@@ -54,6 +61,7 @@ fun BattlePanelView(
     onRow: (PanelRow) -> Unit,
     collapsed: Boolean,
     onCollapse: (Boolean) -> Unit,
+    safari: Boolean = false,
 ) {
     PanelStyle(panel) {
         if (collapsed) {
@@ -80,7 +88,7 @@ fun BattlePanelView(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             groups.forEachIndexed { gi, g ->
-                OpponentBlock(g, repo, icons, iconSize, expanded?.takeIf { it.group == gi }?.row, { onCollapse(true) }) { ri -> onRow(PanelRow(gi, ri)) }
+                OpponentBlock(g, repo, icons, iconSize, safari, expanded?.takeIf { it.group == gi }?.row, { onCollapse(true) }) { ri -> onRow(PanelRow(gi, ri)) }
             }
         }
     }
@@ -92,6 +100,7 @@ private fun OpponentBlock(
     repo: OverlayRepository,
     icons: IconCache,
     iconSize: Dp,
+    safari: Boolean,
     expandedRow: Int?,
     onHeader: () -> Unit,
     onRow: (Int) -> Unit,
@@ -112,11 +121,6 @@ private fun OpponentBlock(
         }
         Line {
             p.types.forEach { TypePill(it, fontSize = 7.5.sp) }
-            Spacer(Modifier.weight(1f))
-            p.catchRate?.let {
-                Label("CATCH")
-                Text("$it", color = PanelMuted, fontSize = 9.sp)
-            }
         }
         if (p.weak4.isNotEmpty()) {
             Line {
@@ -130,11 +134,68 @@ private fun OpponentBlock(
                 p.weak2.forEach { TypePill(it, fontSize = 7.5.sp) }
             }
         }
+        if (p.catchRate != null) {
+            CatchSection(g, icons, iconSize, safari, open = expandedRow == CATCH_ROW) { onRow(CATCH_ROW) }
+        }
         if (rows.isNotEmpty()) {
             Box(Modifier.padding(top = 4.dp).fillMaxWidth().height(1.dp).background(PanelDivider))
             rows.forEachIndexed { i, row ->
                 if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(PanelDivider.copy(alpha = 0.08f)))
                 ValueRow(row, open = expandedRow == i, onToggle = { onRow(i) }, fontSize = 9f)
+            }
+        }
+    }
+}
+
+/**
+ * "CATCH  rate 45 · HP 34%" and a chip per chance for the balls that apply now (balls with the same
+ * chance share a chip). Tapping the header shows the conditional balls (Quick on turn 1, Dusk at
+ * night or in caves...) with their condition. HP that wasn't read counts as full.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CatchSection(g: OpponentGroup, icons: IconCache, iconSize: Dp, safari: Boolean, open: Boolean, onToggle: () -> Unit) {
+    val p = g.pokemon
+    val hp = g.hp
+    val (now, ifs) = remember(p, g.minLevel, hp, safari) { Catch.chips(p, g.minLevel, hp ?: 1f, safari) }
+    val ball = iconSize * 0.42f
+    Column(Modifier.padding(top = 4.dp)) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(remember { MutableInteractionSource() }, indication = null) { onToggle() },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Label("CATCH")
+            Text(
+                "rate ${p.catchRate} · HP ${hp?.let { "${Catch.percent(it)}%" } ?: "?"}",
+                color = PanelMuted, fontSize = 8.sp, modifier = Modifier.weight(1f),
+            )
+            if (ifs.isNotEmpty()) Text(if (open) "▾" else "▸", color = PanelGrey, fontSize = 11.sp)
+        }
+        Chips(now, icons, ball)
+        if (open && ifs.isNotEmpty()) Chips(ifs, icons, ball)
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun Chips(chips: List<BallChip>, icons: IconCache, ball: Dp) {
+    FlowRow(
+        Modifier.fillMaxWidth().padding(top = 3.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
+        chips.forEach { c ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                c.balls.forEach { ItemIcon(icons, "ball-${it.key}", ball) }
+                Text(
+                    (if (c.upTo) "≤" else "") + "${c.percent}%",
+                    color = PanelText, fontSize = 9.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(start = 2.dp),
+                )
+                c.condition?.let { Text(" $it", color = PanelGrey, fontSize = 7.5.sp) }
             }
         }
     }

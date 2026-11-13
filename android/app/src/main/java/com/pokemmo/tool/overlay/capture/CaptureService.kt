@@ -25,6 +25,7 @@ import android.util.DisplayMetrics
 import android.util.Log
 import android.view.Display
 import com.pokemmo.tool.overlay.battle.BattleParser
+import com.pokemmo.tool.overlay.battle.HpBar
 import com.pokemmo.tool.overlay.battle.CaughtDetector
 import com.pokemmo.tool.overlay.battle.OcrLine
 import com.pokemmo.tool.overlay.battle.OpponentGroup
@@ -324,10 +325,14 @@ class CaptureService : Service() {
                 // full frame); line boxes are shifted into crop coordinates.
                 val pixels = IntArray(battleBmp.width * battleBmp.height)
                 battleBmp.getPixels(pixels, 0, battleBmp.width, 0, 0, battleBmp.width, battleBmp.height)
-                parser.group(opponents) { o ->
+                val inCrop = { o: com.pokemmo.tool.overlay.battle.Opponent -> o.box.shifted(-battleRect.left, -battleRect.top) }
+                parser.group(
+                    opponents,
+                    hp = { o -> HpBar.read(pixels, battleBmp.width, battleBmp.height, inCrop(o), width) },
+                ) { o ->
                     CaughtDetector.isCaught(
                         pixels, battleBmp.width, battleBmp.height,
-                        o.box.shifted(-battleRect.left, -battleRect.top),
+                        inCrop(o),
                     )
                 }
             }

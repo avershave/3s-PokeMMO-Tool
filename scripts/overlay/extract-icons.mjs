@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
-import { openRom, narc, palettes, tileData, decodeTiles4bpp, magic } from './nds.js';
+import { openRom, narc, palettes, tileData, decodeTiles4bpp, magic, blz } from './nds.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../..');
@@ -20,7 +20,13 @@ const TABLE = path.join(here, 'icon-palettes.json');
 const MAX_ID = 649;
 const PLATINUM_TABLE_OFFSET = 0xf4781; // ROM file offset (inside ARM9), one byte per species from 1
 const DEFAULT_BLACK = 'roms/Pokemon - Black Version (USA, Europe) (NDSi Enhanced).nds';
-const ITEM_ICONS = { 'ball-poke': 3 };
+// Ball item ids (Gen 5 numbering) -> overlay/items/ball-<name>.png. Sport and Park are left out:
+// PokeMMO has neither.
+const BALL_ITEMS = {
+  master: 1, ultra: 2, great: 3, poke: 4, safari: 5, net: 6, dive: 7, nest: 8, repeat: 9,
+  timer: 10, luxury: 11, premier: 12, dusk: 13, heal: 14, quick: 15, cherish: 16,
+  fast: 492, level: 493, lure: 494, heavy: 495, love: 496, friend: 497, moon: 498, dream: 576,
+};
 
 function args(argv) {
   const out = { black: DEFAULT_BLACK, out: 'art/overlay' };
@@ -78,18 +84,37 @@ async function extract(opts) {
   const items = narc(rom.file('a/0/2/5'));
   const itemDir = path.join(outDir, 'items');
   fs.mkdirSync(itemDir, { recursive: true });
-  for (const [name, k] of Object.entries(ITEM_ICONS)) {
-    const g = items[2 + 2 * k];
-    const p = items[3 + 2 * k];
-    if (magic(g) !== 'RGCN' || magic(p) !== 'RLCN') throw new Error(`item icon ${k} is not an RGCN/RLCN pair`);
-    await png(decodeTiles4bpp(tileData(g), 32, 32, palettes(p)[0]), 32, 32, path.join(itemDir, `${name}.png`));
+  const iconOf = itemIconTable(rom);
+  for (const [name, id] of Object.entries(BALL_ITEMS)) {
+    const [gi, pi] = iconOf(id);
+    const g = items[gi];
+    const p = items[pi];
+    if (magic(g) !== 'RGCN' || magic(p) !== 'RLCN') throw new Error(`item ${id} icon is not an RGCN/RLCN pair`);
+    await png(decodeTiles4bpp(tileData(g), 32, 32, palettes(p)[0]), 32, 32, path.join(itemDir, `ball-${name}.png`));
   }
 
-  console.log(`pokemon icons: ${MAX_ID - missing.length}, items: ${Object.keys(ITEM_ICONS).length}`);
+  console.log(`pokemon icons: ${MAX_ID - missing.length}, items: ${Object.keys(BALL_ITEMS).length}`);
   if (missing.length) {
     console.error(`missing species: ${missing.join(', ')}`);
     process.exit(1);
   }
+}
+
+/**
+ * The ARM9 table of (graphic, palette) file indices into a/0/2/5, one u16 pair per item id. It is
+ * found by its start: items 1..9 (Master to Repeat Ball) use files 2..19 in order.
+ */
+function itemIconTable(rom) {
+  const a9 = blz(rom.arm9()) || rom.arm9();
+  for (let i = 4; i + 36 <= a9.length; i += 2) {
+    let ok = true;
+    for (let k = 0; k < 18 && ok; k++) ok = a9.readUInt16LE(i + 2 * k) === 2 + k;
+    if (ok) {
+      const base = i - 4; // item 0
+      return (id) => [a9.readUInt16LE(base + 4 * id), a9.readUInt16LE(base + 4 * id + 2)];
+    }
+  }
+  throw new Error('item icon table not found in ARM9');
 }
 
 const opts = args(process.argv.slice(2));
