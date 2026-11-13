@@ -15,6 +15,13 @@ win-unpacked/
 release/*
 !release/builder-effective-config.yaml
 
+# LiveRouteOCR helper build output (scripts/build-live-helper.ps1)
+LiveRouteOCR/*
+!LiveRouteOCR/*.cs
+!LiveRouteOCR/LiveRouteOCR.csproj
+!LiveRouteOCR/tessdata/
+resources/LiveRouteOCR/
+
 # Telemetry secrets injected during CI/CD
 resources/telemetry.config.json
 
