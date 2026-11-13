@@ -37,7 +37,13 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8 shrinks and optimises the code; unused resources go too. Libraries (ML Kit,
+            // kotlinx.serialization, OkHttp, Compose) ship their own keep rules.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Phones only: the x86 copies of ML Kit's native OCR library are for emulators (~22 MB).
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
             if (hasSigning) {
                 signingConfig = signingConfigs.getByName("release")
             }
