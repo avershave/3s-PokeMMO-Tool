@@ -16,18 +16,6 @@ function normalizeKey(s=''){
 }
 function normalizeType(t){ return String(t||'').toLowerCase().trim(); }
 
-// Build lookups to help resolve form data and skip standalone form entries
-const RAW_DEX_BY_ID = new Map(dexRaw.map(m => [m.id, m]));
-const FORM_IDS = new Set();
-for (const mon of dexRaw) {
-  if (!Array.isArray(mon.forms)) continue;
-  for (const f of mon.forms) {
-    if (typeof f.id === 'number' && f.id !== mon.id) {
-      FORM_IDS.add(f.id);
-    }
-  }
-}
-
 function toLegacyShape(m){
   const types = Array.isArray(m.types) ? [...new Set(m.types.map(normalizeType))] : [];
   return {
@@ -56,7 +44,20 @@ function toLegacyShape(m){
   };
 }
 
-const DEX_LIST = dexRaw
+/** Builds the legacy dex list from a raw dex in UpdatedDex.json's shape. */
+function buildDexList(raw){
+  // Lookups to help resolve form data and skip standalone form entries
+  const RAW_DEX_BY_ID = new Map(raw.map(m => [m.id, m]));
+  const FORM_IDS = new Set();
+  for (const mon of raw) {
+    if (!Array.isArray(mon.forms)) continue;
+    for (const f of mon.forms) {
+      if (typeof f.id === 'number' && f.id !== mon.id) {
+        FORM_IDS.add(f.id);
+      }
+    }
+  }
+  return raw
   .filter(m => !FORM_IDS.has(m.id))
   .map(m => {
     const base = toLegacyShape(m);
@@ -83,6 +84,9 @@ const DEX_LIST = dexRaw
     }
     return base;
   });
+}
+
+const DEX_LIST = buildDexList(dexRaw);
 
 const DEX_BY_NAME = (() => {
   const map = new Map();
@@ -108,5 +112,5 @@ function getMonByDex(id){
 function getAll(){ return DEX_LIST; }
 function getByName(name){ return getMon(name); }
 
-export { DEX_LIST, DEX_BY_NAME, DEX_BY_ID, getMon, getMonByDex, getAll, getByName };
+export { buildDexList, DEX_LIST, DEX_BY_NAME, DEX_BY_ID, getMon, getMonByDex, getAll, getByName };
 
