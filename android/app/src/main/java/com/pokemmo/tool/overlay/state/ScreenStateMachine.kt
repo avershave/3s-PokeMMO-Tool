@@ -2,11 +2,19 @@ package com.pokemmo.tool.overlay.state
 
 import com.pokemmo.tool.overlay.battle.OpponentGroup
 import com.pokemmo.tool.overlay.data.Area
+import com.pokemmo.tool.overlay.match.Season
 
 sealed interface ScreenState {
     data object Idle : ScreenState
     data class Overworld(val area: Area) : ScreenState
     data class Battle(val groups: List<OpponentGroup>, val area: Area?) : ScreenState
+}
+
+/** The same state with its area's spawns narrowed to [season] (see [Area.forSeason]). */
+fun ScreenState.forSeason(season: Season?): ScreenState = when (this) {
+    is ScreenState.Overworld -> copy(area = area.forSeason(season))
+    is ScreenState.Battle -> copy(area = area?.forSeason(season))
+    ScreenState.Idle -> this
 }
 
 class ScreenStateMachine {

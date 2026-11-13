@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hubToDex, hubToHordeRegions, rarityFromPercent } from '../../scripts/overlay/hub-data.mjs';
+import { attachSeasons, hubForSeason, hubToDex, hubToHordeRegions, rarityFromPercent } from '../../scripts/overlay/hub-data.mjs';
 
 // One Hub location row, with the fields hub-data reads.
 const row = (over = {}) => ({
@@ -98,5 +98,47 @@ describe('hubToHordeRegions', () => {
         ],
       },
     ]);
+  });
+});
+
+describe('hubForSeason', () => {
+  it('keeps one season and the all-year rows', () => {
+    const [m] = hubForSeason([mon('Slowpoke', [
+      row({ season: 'Spring' }), row({ season: 'Autumn', min_level: 30 }), row({ season: 'Any', min_level: 40 }),
+    ])], 'Autumn');
+    expect(m.locations.map(l => l.min_level)).toEqual([30, 40]);
+  });
+});
+
+describe('attachSeasons', () => {
+  const spawn = (id, method) => ({ id, name: String(id), encounters: [{ method, rarities: [], min: 1, max: 2, hordeSize: null }] });
+  const area = (spawns) => ({ region: 'Kanto', name: 'Route 6', key: 'route6', spawns });
+  const file = (areas) => ({ schemaVersion: 1, areas });
+
+  it('adds per-season spawns where the seasons differ', () => {
+    const all = file([area([spawn(79, 'Water'), spawn(79, 'Horde')])]);
+    const bySeason = {
+      Spring: file([area([spawn(79, 'Water'), spawn(79, 'Horde')])]),
+      Summer: file([area([spawn(79, 'Water'), spawn(79, 'Horde')])]),
+      Autumn: file([area([spawn(79, 'Water')])]),
+      Winter: file([area([spawn(79, 'Water'), spawn(79, 'Horde')])]),
+    };
+    const [a] = attachSeasons(all, bySeason).areas;
+    expect(a.spawns).toHaveLength(2);
+    expect(a.seasons.Autumn).toEqual([spawn(79, 'Water')]);
+    expect(Object.keys(a.seasons)).toEqual(['Spring', 'Summer', 'Autumn', 'Winter']);
+  });
+
+  it('leaves seasons out where every season is the same', () => {
+    const same = () => file([area([spawn(1, 'Grass')])]);
+    const [a] = attachSeasons(same(), { Spring: same(), Summer: same(), Autumn: same(), Winter: same() }).areas;
+    expect(a.seasons).toBeUndefined();
+  });
+
+  it('gives a season with no spawns an empty list', () => {
+    const all = file([area([spawn(1, 'Grass')])]);
+    const none = file([]);
+    const [a] = attachSeasons(all, { Spring: all, Summer: none, Autumn: all, Winter: all }).areas;
+    expect(a.seasons.Summer).toEqual([]);
   });
 });

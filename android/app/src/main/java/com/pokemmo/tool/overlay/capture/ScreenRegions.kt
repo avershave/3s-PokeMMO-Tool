@@ -20,8 +20,8 @@ data class IntRect(val left: Int, val top: Int, val right: Int, val bottom: Int)
 
 /** Fractions of the landscape screen, taken from the reference screenshots. */
 object ScreenRegions {
-    // OCR regions.
-    val ROUTE = FRect(0.03f, 0.00f, 0.26f, 0.055f)
+    // OCR regions. ROUTE takes the place name and the clock line under it ("Mon 21:35 · Autumn").
+    val ROUTE = FRect(0.03f, 0.00f, 0.26f, 0.085f)
     val BATTLE = FRect(0.00f, 0.08f, 0.86f, 0.28f)
 
     // Overlay regions. The drawer and card are shown in the overworld, the panel during battle.
