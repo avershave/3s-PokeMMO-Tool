@@ -13,6 +13,9 @@ data class PokemonData(
     val weak4: List<String> = emptyList(),
     val weak2: List<String> = emptyList(),
     val heldItems: List<String> = emptyList(),
+    val speed: Int? = null,
+    val moonStone: Boolean = false,
+    val friendship: Boolean = false,
 )
 
 @Serializable

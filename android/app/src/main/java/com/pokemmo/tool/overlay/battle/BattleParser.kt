@@ -15,6 +15,8 @@ data class OpponentGroup(
     val minLevel: Int,
     val maxLevel: Int,
     val caught: Boolean,
+    /** HP left (0..1) of the weakest member whose bar was read; null if none was. */
+    val hp: Float? = null,
 )
 
 class BattleParser(private val repo: OverlayRepository) {
@@ -31,7 +33,11 @@ class BattleParser(private val repo: OverlayRepository) {
     }
 
     /** Groups by species in first-seen order; a group is caught if any member is. */
-    fun group(opps: List<Opponent>, caught: (Opponent) -> Boolean): List<OpponentGroup> =
+    fun group(
+        opps: List<Opponent>,
+        hp: (Opponent) -> Float? = { null },
+        caught: (Opponent) -> Boolean,
+    ): List<OpponentGroup> =
         opps.groupBy { it.pokemon.id }.values.map { g ->
             OpponentGroup(
                 pokemon = g.first().pokemon,
@@ -39,6 +45,7 @@ class BattleParser(private val repo: OverlayRepository) {
                 minLevel = g.minOf { it.level },
                 maxLevel = g.maxOf { it.level },
                 caught = g.any(caught),
+                hp = g.mapNotNull(hp).minOrNull(),
             )
         }
 

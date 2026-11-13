@@ -135,6 +135,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
     private var panelMaxDp by mutableStateOf(DpSize(150.dp, 300.dp))
     private var panelRow by mutableStateOf<PanelRow?>(null)
     private var panelCollapsed by mutableStateOf(false)
+    private var panelSafari by mutableStateOf(false)
 
     private var panelBg by mutableStateOf(true) // OverlaySettings.panelBackground, applied live
     private var current: ScreenState = ScreenState.Idle
@@ -347,6 +348,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
         // Battle panel.
         if (vis.panel && s is ScreenState.Battle && s.groups.isNotEmpty()) {
             groups = s.groups
+            panelSafari = s.area?.name?.contains("Safari", ignoreCase = true) == true
             iconDp = (iconSizePx(m.widthPixels, m.heightPixels) / density).dp
             val rect = ScreenRegions.BATTLE_PANEL.toPixels(m.widthPixels, m.heightPixels)
             panelMaxDp = DpSize((rect.width / density).dp, (rect.height / density).dp)
@@ -363,6 +365,7 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
                     onRow = { r -> panelRow = if (panelRow == r) null else r },
                     collapsed = panelCollapsed,
                     onCollapse = { panelCollapsed = it },
+                    safari = panelSafari,
                 )
             }.also { panelView = it }
             val p = baseParams(0, WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT)

@@ -48,6 +48,10 @@ function buildPokemon(dexList, catchRates) {
       weak4: w.x4,
       weak2: w.x2,
       heldItems: (m.heldItems || []).map(h => h.name),
+      // For the ball list: Fast (base Speed), Moon (evolves by Moon Stone), Friend (by friendship).
+      speed: Number(m.stats?.speed) || null,
+      moonStone: (m.evolutions || []).some(e => /moon stone/i.test(e.item_name || '')),
+      friendship: (m.evolutions || []).some(e => String(e.type || '').startsWith('HAPPINESS')),
     });
   }
   pokemon.sort((a, b) => a.id - b.id);

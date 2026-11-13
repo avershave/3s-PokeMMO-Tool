@@ -141,6 +141,13 @@ fun BallIcon(cache: IconCache, caught: Boolean, size: Dp, modifier: Modifier = M
     PixelImage(img, size, faded = !caught, modifier = modifier)
 }
 
+/** An item icon from overlay/items (32x32), crisp. */
+@Composable
+fun ItemIcon(cache: IconCache, name: String, size: Dp, modifier: Modifier = Modifier) {
+    val img = remember(name) { cache.item(name) }
+    PixelImage(img, size, faded = false, modifier = modifier)
+}
+
 /** An 8x8 pixel drawing: (x, y, w, h, argb) cells. */
 class PixelArt(val cells: List<IntArray>, val colors: List<Long>)
 

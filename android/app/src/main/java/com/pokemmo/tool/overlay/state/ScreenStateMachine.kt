@@ -17,6 +17,14 @@ fun ScreenState.forSeason(season: Season?): ScreenState = when (this) {
     ScreenState.Idle -> this
 }
 
+/**
+ * A bar can go unread for a frame (an animation passing over it); keep the last HP read for the
+ * same species rather than falling back to "unknown".
+ */
+internal fun List<OpponentGroup>.keepHp(prev: List<OpponentGroup>): List<OpponentGroup> = map { g ->
+    if (g.hp != null) g else g.copy(hp = prev.firstOrNull { it.pokemon.id == g.pokemon.id }?.hp)
+}
+
 class ScreenStateMachine {
     private var confirmedArea: Area? = null
     private var candidateArea: Area? = null
@@ -33,7 +41,7 @@ class ScreenStateMachine {
             // Route ticks during a battle are ignored; only opponents decide when it ends.
             if (opponents.isNotEmpty()) {
                 emptyTicks = 0
-                battle = inBattle.copy(groups = opponents)
+                battle = inBattle.copy(groups = opponents.keepHp(inBattle.groups))
             } else if (++emptyTicks >= BATTLE_EXIT_TICKS) {
                 battle = null
                 emptyTicks = 0
