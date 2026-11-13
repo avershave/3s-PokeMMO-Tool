@@ -861,7 +861,6 @@ function ocrDevExe() {
   const base = path.join(__dirname, '..', OCR_FOLDER_NAME);
   const runtime = OCR_PLATFORM_SUBDIR;
   const candidates = [
-    path.join(base, OCR_EXE_NAME),
     runtime ? path.join(base, runtime, OCR_EXE_NAME) : null,
     path.join(base, 'publish', runtime || '', OCR_EXE_NAME),
   ].filter(Boolean);

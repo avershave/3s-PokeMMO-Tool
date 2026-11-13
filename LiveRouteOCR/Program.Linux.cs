@@ -3,7 +3,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
-using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 
 partial class LiveRouteOCR
@@ -366,7 +365,7 @@ partial class LiveRouteOCR
         return IntPtr.Zero;
     }
 
-    static bool LinuxCaptureRegion(IntPtr hWnd, POINT origin, Rectangle rect, Bitmap target)
+    static bool LinuxCaptureRegion(IntPtr hWnd, POINT origin, Rectangle rect, RgbImage target)
     {
         var display = XOpenDisplay(IntPtr.Zero);
         if (display == IntPtr.Zero) return false;
@@ -383,35 +382,28 @@ partial class LiveRouteOCR
                 var img = Marshal.PtrToStructure<XImage>(imagePtr);
                 int bytesPerPixel = Math.Max(1, img.bits_per_pixel / 8);
                 int srcStride = img.bytes_per_line;
-                var rectSize = new Rectangle(0, 0, target.Width, target.Height);
-                var data = target.LockBits(rectSize, ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
-                try
+                unsafe
                 {
-                    unsafe
+                    byte* srcBase = (byte*)img.data;
+                    var dst = target.Data;
+                    int w = Math.Min(rect.Width, target.Width);
+                    int h = Math.Min(rect.Height, target.Height);
+                    for (int y = 0; y < h; y++)
                     {
-                        byte* srcBase = (byte*)img.data;
-                        byte* dstBase = (byte*)data.Scan0;
-                        for (int y = 0; y < rect.Height; y++)
+                        byte* srcRow = srcBase + y * srcStride;
+                        int dstRow = y * target.Stride;
+                        for (int x = 0; x < w; x++)
                         {
-                            byte* srcRow = srcBase + y * srcStride;
-                            byte* dstRow = dstBase + y * data.Stride;
-                            for (int x = 0; x < rect.Width; x++)
-                            {
-                                int srcIndex = x * bytesPerPixel;
-                                byte b = srcRow[srcIndex + 0];
-                                byte g = bytesPerPixel > 1 ? srcRow[srcIndex + 1] : b;
-                                byte r = bytesPerPixel > 2 ? srcRow[srcIndex + 2] : b;
-                                int dstIndex = x * 3;
-                                dstRow[dstIndex + 0] = b;
-                                dstRow[dstIndex + 1] = g;
-                                dstRow[dstIndex + 2] = r;
-                            }
+                            int srcIndex = x * bytesPerPixel;
+                            byte b = srcRow[srcIndex + 0];
+                            byte g = bytesPerPixel > 1 ? srcRow[srcIndex + 1] : b;
+                            byte r = bytesPerPixel > 2 ? srcRow[srcIndex + 2] : b;
+                            int dstIndex = dstRow + x * 3;
+                            dst[dstIndex + 0] = b;
+                            dst[dstIndex + 1] = g;
+                            dst[dstIndex + 2] = r;
                         }
                     }
-                }
-                finally
-                {
-                    target.UnlockBits(data);
                 }
                 return true;
             }
