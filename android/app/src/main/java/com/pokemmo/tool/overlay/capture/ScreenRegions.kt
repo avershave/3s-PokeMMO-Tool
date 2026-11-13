@@ -28,8 +28,9 @@ object ScreenRegions {
     // DRAWER_AREA: the drawer's widest and tallest; it runs from the route name to the icons at the
     // top right. It overlaps BATTLE, which is fine: it is hidden as soon as a battle is suspected.
     val DRAWER_AREA = FRect(0.27f, 0.00f, 0.79f, 0.50f)
-    // Left of the player's Pokémon, between the opponent names and the Fight button.
-    val BATTLE_PANEL = FRect(0.01f, 0.29f, 0.30f, 0.71f)
+    // Over the player's own Pokémon: between the two move columns (the move menu), below the
+    // opponent names and left of the opponents themselves (horde sprites start near 0.52).
+    val BATTLE_PANEL = FRect(0.27f, 0.29f, 0.53f, 0.71f)
 
     /**
      * The card's left and right edges: from just right of the D-pad to the right edge of the old,
@@ -37,8 +38,11 @@ object ScreenRegions {
      */
     val CARD_AREA = FRect(0.28f, 0.00f, 0.86f, 0.90f)
 
-    // The game's on-screen controls (overworld), which the overlay must leave free.
+    // The game's on-screen controls, which the overlay must leave free. DPAD is the overworld's;
+    // MOVES_LEFT/RIGHT are the two columns of the battle move menu (Pixel 9 Pro XL screenshot).
     val DPAD = FRect(0.13f, 0.56f, 0.27f, 0.87f)
+    val MOVES_LEFT = FRect(0.00f, 0.32f, 0.26f, 0.67f)
+    val MOVES_RIGHT = FRect(0.80f, 0.32f, 1.00f, 0.67f)
 
     /** Everything drawn (text, spacing, icons) is this many times the base design size. */
     const val UI_SCALE = 1.5f
