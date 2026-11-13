@@ -60,22 +60,38 @@ class CatchTest {
     }
 
     @Test
-    fun `chips merge equal chances and sort best first`() {
-        val (now, ifs) = Catch.chips(mon(), level = 40, hp = 1f, safari = false)
-        assertEquals(now.sortedByDescending { it.percent }, now)
-        assertEquals(now.size, now.map { it.percent }.toSet().size)
-        // Ultra and Cherish (2x) share a chip; Poké, Luxury and the 1x specials share another.
-        assertTrue(now.any { Ball.ULTRA in it.balls && Ball.CHERISH in it.balls })
-        assertTrue(now.any { Ball.POKE in it.balls && Ball.LUXURY in it.balls && Ball.NET in it.balls })
-        // Every conditional ball beats a Poké Ball, or it would not be listed.
-        val plain = now.single { Ball.POKE in it.balls }.percent
-        assertTrue(ifs.all { it.percent > plain && it.condition != null })
-        assertEquals(ifs.sortedByDescending { it.percent }, ifs)
+    fun `poke great and ultra always come first, by name`() {
+        val v = Catch.view(mon(), level = 40, hp = 1f, safari = false)!!
+        assertEquals(listOf(Ball.POKE, Ball.GREAT, Ball.ULTRA), v.basic.map { it.ball })
+        assertTrue(v.best.isEmpty()) // nothing special about a level 40 Normal type
     }
 
     @Test
-    fun `no catch rate, no chips`() {
-        val (now, ifs) = Catch.chips(PokemonData(1, "X", listOf("Normal")), 10, 1f, false)
-        assertTrue(now.isEmpty() && ifs.isEmpty())
+    fun `best lists balls that beat ultra now, with the reason`() {
+        // Mankey Lv. 16 (catch rate 190): the Nest Ball is 4x.
+        val v = Catch.view(mon(rate = 190), level = 16, hp = 1f, safari = false)!!
+        val best = v.best.single()
+        assertEquals(Ball.NEST, best.ball)
+        assertEquals("low level", best.note)
+        assertTrue(best.percent > v.basic.last().percent)
+        assertFalse(v.more.any { it.ball == Ball.NEST })
+    }
+
+    @Test
+    fun `more lists the rest best first, conditions only when they help`() {
+        val v = Catch.view(mon(), level = 40, hp = 1f, safari = false)!!
+        assertEquals(v.more.sortedByDescending { it.percent }, v.more)
+        val plain = v.basic.first().percent
+        val quick = v.more.single { it.ball == Ball.QUICK }
+        assertEquals("on turn 1", quick.note)
+        assertTrue(quick.percent > plain)
+        // A 1x Net Ball has no reason attached.
+        assertEquals(null, v.more.single { it.ball == Ball.NET }.note)
+        assertTrue(v.more.single { it.ball == Ball.HEAVY }.upTo)
+    }
+
+    @Test
+    fun `no catch rate, nothing to show`() {
+        assertEquals(null, Catch.view(PokemonData(1, "X", listOf("Normal")), 10, 1f, false))
     }
 }
