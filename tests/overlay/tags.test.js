@@ -105,4 +105,4 @@ test('real dex data builds with real content', async () => {
   expect(r.warnings).toEqual(expect.any(Array));
   expect(r.pokemon[63].some(t => t.key === 'utility.synchronize')).toBe(true);
   expect(r.pokemon[65].find(t => t.kind === 'pvp')).toBeTruthy();
-});
+}, 30_000); // importing the full dex takes over 5 s on CI runners
