@@ -378,11 +378,10 @@ class OverlayWindows(private val context: Context, initialRepo: OverlayRepositor
             return
         }
         val density = m.density * ScreenRegions.UI_SCALE
-        val area = ScreenRegions.DRAWER_AREA.toPixels(m.widthPixels, m.heightPixels)
+        val area = ScreenRegions.CARD_AREA.toPixels(m.widthPixels, m.heightPixels)
         val place = cardPlacement(
             drawerBottom = drawerHeightPx,
             area = area,
-            screenW = m.widthPixels,
             screenH = m.heightPixels,
             maxBottom = (ScreenRegions.CARD_MAX_BOTTOM * m.heightPixels).toInt(),
         )
