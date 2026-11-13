@@ -1,15 +1,15 @@
 [versions]
-agp = "8.13.2"
-kotlin = "2.2.21"
-coreKtx = "1.13.0"
-activityCompose = "1.12.4"
-composeBom = "2025.12.01"
-serializationJson = "1.11.0"
+agp = "9.5.1"
+kotlin = "2.4.21"
+coreKtx = "1.19.1"
+activityCompose = "1.13.0"
+composeBom = "2026.09.00"
+serializationJson = "1.13.0"
 mlkitTextRecognition = "16.0.1"
-okhttp = "4.12.0"
-coroutines = "1.10.2"
-lifecycle = "2.9.4"
-savedstate = "1.3.3"
+okhttp = "5.5.1"
+coroutines = "1.11.0"
+lifecycle = "2.11.0"
+savedstate = "1.5.0"
 junit = "4.13.2"
 
 [libraries]
@@ -30,6 +30,5 @@ junit = { module = "junit:junit", version.ref = "junit" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
