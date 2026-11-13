@@ -28,7 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.pokemmo.tool.overlay.battle.BallChip
+import com.pokemmo.tool.overlay.battle.BallLine
 import com.pokemmo.tool.overlay.battle.Catch
 import com.pokemmo.tool.overlay.battle.OpponentGroup
 import com.pokemmo.tool.overlay.data.OverlayRepository
@@ -148,58 +148,80 @@ private fun OpponentBlock(
 }
 
 /**
- * "CATCH  rate 45 · HP 34%" and a chip per chance for the balls that apply now (balls with the same
- * chance share a chip). Tapping the header shows the conditional balls (Quick on turn 1, Dusk at
- * night or in caves...) with their condition. HP that wasn't read counts as full.
+ * CATCH, the catch rate and the HP read ("?" when the bar wasn't found: counted as full), then:
+ * Poké, Great and Ultra by name; "Best" for any ball that beats Ultra now, with its reason; and
+ * "More balls", which opens every other ball on its own line with when it applies.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CatchSection(g: OpponentGroup, icons: IconCache, iconSize: Dp, safari: Boolean, open: Boolean, onToggle: () -> Unit) {
     val p = g.pokemon
     val hp = g.hp
-    val (now, ifs) = remember(p, g.minLevel, hp, safari) { Catch.chips(p, g.minLevel, hp ?: 1f, safari) }
+    val view = remember(p, g.minLevel, hp, safari) { Catch.view(p, g.minLevel, hp ?: 1f, safari) } ?: return
     val ball = iconSize * 0.42f
     Column(Modifier.padding(top = 4.dp)) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clickable(remember { MutableInteractionSource() }, indication = null) { onToggle() },
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Label("CATCH")
-            Text(
-                "rate ${p.catchRate} · HP ${hp?.let { "${Catch.percent(it)}%" } ?: "?"}",
-                color = PanelMuted, fontSize = 8.sp, modifier = Modifier.weight(1f),
-            )
-            if (ifs.isNotEmpty()) Text(if (open) "▾" else "▸", color = PanelGrey, fontSize = 11.sp)
+            Text("rate ${p.catchRate} · HP ${hp?.let { "${Catch.percent(it)}%" } ?: "?"}", color = PanelMuted, fontSize = 8.sp)
         }
-        Chips(now, icons, ball)
-        if (open && ifs.isNotEmpty()) Chips(ifs, icons, ball)
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun Chips(chips: List<BallChip>, icons: IconCache, ball: Dp) {
-    FlowRow(
-        Modifier.fillMaxWidth().padding(top = 3.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-        itemVerticalAlignment = Alignment.CenterVertically,
-    ) {
-        chips.forEach { c ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                c.balls.forEach { ItemIcon(icons, "ball-${it.key}", ball) }
-                Text(
-                    (if (c.upTo) "≤" else "") + "${c.percent}%",
-                    color = PanelText, fontSize = 9.sp, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(start = 2.dp),
-                )
-                c.condition?.let { Text(" $it", color = PanelGrey, fontSize = 7.5.sp) }
+        FlowRow(
+            Modifier.fillMaxWidth().padding(top = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            itemVerticalAlignment = Alignment.CenterVertically,
+        ) {
+            view.basic.forEach { BallName(it, icons, ball) }
+        }
+        view.best.forEach { line ->
+            Row(Modifier.padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Best ", color = Story, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                BallName(line, icons, ball)
+                line.note?.let { Text("  $it", color = PanelGrey, fontSize = 8.sp) }
+            }
+        }
+        if (view.more.isNotEmpty()) {
+            Text(
+                if (open) "Fewer balls ▾" else "More balls ▸",
+                color = Story,
+                fontSize = 8.5.sp,
+                modifier = Modifier
+                    .padding(top = 3.dp)
+                    .clickable(remember { MutableInteractionSource() }, indication = null) { onToggle() },
+            )
+            if (open) {
+                Column(Modifier.padding(top = 2.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    view.more.forEach { line ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            BallName(line, icons, ball, nameWidth = 38.dp)
+                            line.note?.let { Text("  $it", color = PanelGrey, fontSize = 8.sp) }
+                        }
+                    }
+                }
             }
         }
     }
 }
+
+/** Ball icon, name and chance: "◓ Ultra 37%". [nameWidth] lines names up in a list. */
+@Composable
+private fun BallName(line: BallLine, icons: IconCache, ball: Dp, nameWidth: Dp? = null) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        ItemIcon(icons, "ball-${line.ball.key}", ball)
+        Text(
+            line.ball.label,
+            color = PanelMuted,
+            fontSize = 9.sp,
+            modifier = Modifier.padding(start = 2.dp).then(if (nameWidth != null) Modifier.width(nameWidth) else Modifier),
+        )
+        Text(
+            (if (line.upTo) "up to " else " ") + "${line.percent}%",
+            color = PanelText,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+private val Story get() = TagKind.STORY.labelColor()
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
