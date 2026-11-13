@@ -24,14 +24,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.composed
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerEvent
+import androidx.compose.ui.input.pointer.changedToDown
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,45 +55,44 @@ interface PanelDrag {
 /**
  * A tap runs [onTap]; a press that travels past the touch slop drags the window through [drag]
  * instead. One pointerInput(Unit) gesture loop, so redraws and the panel's own scrolling can't cut
- * a tap short (they did with pointerInteropFilter). Positions are taken on screen (window corner +
- * position in the window), because the window moves under the finger.
+ * a tap short (they did with pointerInteropFilter). Travel is measured in raw screen coordinates
+ * from the underlying MotionEvent: positions inside the window shift as the window moves, and
+ * using them (or the window's reported location, which lags) made the drag overshoot and jump.
  */
 private fun Modifier.dragOrTap(drag: PanelDrag?, onTap: () -> Unit): Modifier = composed {
-    val view = LocalView.current
     val slop = LocalViewConfiguration.current.touchSlop
     val tap by rememberUpdatedState(onTap)
     val mover by rememberUpdatedState(drag)
-    val coords = remember { arrayOfNulls<LayoutCoordinates>(1) }
-    fun screen(local: Offset): Offset {
-        val c = coords[0] ?: return local
-        val loc = IntArray(2).also { view.getLocationOnScreen(it) }
-        return c.localToWindow(local) + Offset(loc[0].toFloat(), loc[1].toFloat())
-    }
-    onGloballyPositioned { coords[0] = it }.pointerInput(Unit) {
+    pointerInput(Unit) {
         awaitEachGesture {
-            val down = awaitFirstDown(requireUnconsumed = false)
+            var event = awaitPointerEvent()
+            while (event.changes.none { it.changedToDown() }) event = awaitPointerEvent()
+            val down = event.changes.first { it.changedToDown() }
             down.consume()
-            val start = screen(down.position)
+            val start = event.raw() ?: return@awaitEachGesture
             var dragging = false
             while (true) {
-                val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                event = awaitPointerEvent()
+                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                change.consume()
                 if (!change.pressed) {
-                    change.consume()
                     if (dragging) mover?.end() else tap()
                     return@awaitEachGesture
                 }
-                val d = screen(change.position) - start
+                val d = (event.raw() ?: continue) - start
                 if (!dragging && mover != null && d.getDistance() > slop) {
                     dragging = true
                     mover?.start()
                 }
                 if (dragging) mover?.moveBy(d.x, d.y)
-                change.consume()
             }
             if (dragging) mover?.end()
         }
     }
 }
+
+/** The first pointer's position on the screen, from the MotionEvent behind this event. */
+private fun PointerEvent.raw(): Offset? = motionEvent?.let { Offset(it.rawX, it.rawY) }
 
 /** [PanelRow.row] of a block's catch section (its conditional balls). */
 const val CATCH_ROW = -1
