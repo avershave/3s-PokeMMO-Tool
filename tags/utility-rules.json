@@ -1,0 +1,12 @@
+[
+  { "key": "utility.pickup", "ability": "Pickup" },
+  { "key": "utility.synchronize", "ability": "Synchronize" },
+  { "key": "utility.compoundeyes", "ability": "Compound Eyes" },
+  { "key": "utility.frisk", "ability": "Frisk" },
+  { "key": "utility.payday", "levelMove": "Pay Day" },
+  { "key": "utility.thief", "levelMove": "Thief" },
+  { "key": "utility.covet", "levelMove": "Covet" },
+  { "key": "utility.falseswipe", "levelMove": "False Swipe" },
+  { "key": "utility.sweetscent", "levelMove": "Sweet Scent" },
+  { "key": "utility.spore", "levelMove": "Spore" }
+]
