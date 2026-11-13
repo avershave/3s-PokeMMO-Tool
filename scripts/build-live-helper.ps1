@@ -19,7 +19,7 @@ function Publish-Helper {
     [string]$Output
   )
 
-  $framework = if ($Runtime -eq 'win-x64') { 'net8.0-windows' } else { 'net8.0' }
+  $framework = if ($Runtime -eq 'win-x64') { 'net10.0-windows' } else { 'net10.0' }
   # Publish skips runtime files whose existing copies look newer, so a stale runtime left in the output folder would survive.
   if (Test-Path $Output) { Remove-Item -Recurse -Force $Output }
   dotnet publish ./LiveRouteOCR/LiveRouteOCR.csproj -c Release -r $Runtime -f $framework --self-contained true -p:PublishSingleFile=false -o $Output
