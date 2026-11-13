@@ -1033,8 +1033,9 @@ function useAbilityDesc(name){
 }
 
 function AbilityPill({ label, name, compact = false }){
-  if (!name) return null;
+  // The hook runs before the early return: hooks must run on every render, in the same order.
   const desc = useAbilityDesc(name);
+  if (!name) return null;
   const trimmedDesc = desc?.trim() || '';
   const tooltipContent = trimmedDesc || titleCase(name);
   // Unified ability text size; overflow handled with ellipsis
