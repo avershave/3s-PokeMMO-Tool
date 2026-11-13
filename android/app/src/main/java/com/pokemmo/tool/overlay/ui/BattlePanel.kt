@@ -22,14 +22,17 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.composed
-import androidx.compose.ui.input.pointer.pointerInteropFilter
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalViewConfiguration
-import android.view.MotionEvent
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -53,29 +56,44 @@ interface PanelDrag {
 
 /**
  * A tap runs [onTap]; a press that travels past the touch slop drags the window through [drag]
- * instead. Raw (screen) coordinates, because the window moves under the finger.
+ * instead. One pointerInput(Unit) gesture loop, so redraws and the panel's own scrolling can't cut
+ * a tap short (they did with pointerInteropFilter). Positions are taken on screen (window corner +
+ * position in the window), because the window moves under the finger.
  */
-@OptIn(ExperimentalComposeUiApi::class)
 private fun Modifier.dragOrTap(drag: PanelDrag?, onTap: () -> Unit): Modifier = composed {
+    val view = LocalView.current
     val slop = LocalViewConfiguration.current.touchSlop
-    val t = remember { FloatArray(2) }
-    var dragging by remember { mutableStateOf(false) }
-    pointerInteropFilter { e ->
-        when (e.actionMasked) {
-            MotionEvent.ACTION_DOWN -> { t[0] = e.rawX; t[1] = e.rawY; dragging = false }
-            MotionEvent.ACTION_MOVE -> {
-                val dx = e.rawX - t[0]
-                val dy = e.rawY - t[1]
-                if (!dragging && drag != null && dx * dx + dy * dy > slop * slop) {
-                    dragging = true
-                    drag.start()
+    val tap by rememberUpdatedState(onTap)
+    val mover by rememberUpdatedState(drag)
+    val coords = remember { arrayOfNulls<LayoutCoordinates>(1) }
+    fun screen(local: Offset): Offset {
+        val c = coords[0] ?: return local
+        val loc = IntArray(2).also { view.getLocationOnScreen(it) }
+        return c.localToWindow(local) + Offset(loc[0].toFloat(), loc[1].toFloat())
+    }
+    onGloballyPositioned { coords[0] = it }.pointerInput(Unit) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            down.consume()
+            val start = screen(down.position)
+            var dragging = false
+            while (true) {
+                val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                if (!change.pressed) {
+                    change.consume()
+                    if (dragging) mover?.end() else tap()
+                    return@awaitEachGesture
                 }
-                if (dragging) drag?.moveBy(dx, dy)
+                val d = screen(change.position) - start
+                if (!dragging && mover != null && d.getDistance() > slop) {
+                    dragging = true
+                    mover?.start()
+                }
+                if (dragging) mover?.moveBy(d.x, d.y)
+                change.consume()
             }
-            MotionEvent.ACTION_UP -> if (dragging) drag?.end() else onTap()
-            MotionEvent.ACTION_CANCEL -> if (dragging) drag?.end()
+            if (dragging) mover?.end()
         }
-        true
     }
 }
 
