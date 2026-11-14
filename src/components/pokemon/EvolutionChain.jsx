@@ -197,16 +197,16 @@ function EvolutionChain({ mon, onSelect }) {
   }
 
   return (
-    <div style={{ margin:'16px 0 6px' }}>
-      <div className="label-muted" style={{ fontWeight:700, marginBottom:8 }}>{title}</div>
+    <div className="evo-chain">
+      <div className="evo-title">{title}</div>
       {!hasChain && !hasForms ? (
-        <div className="label-muted">This Pokemon does not Evolve</div>
+        <div className="label-muted">This Pokémon doesn't evolve</div>
       ) : (
         <>
           {hasChain && renderMon(base)}
           {hasForms && (
             <div style={{ marginTop: hasChain ? 16 : 0 }}>
-              {hasChain && <div className="label-muted" style={{ fontWeight:700, marginBottom:8, marginTop:16 }}>Forms</div>}
+              {hasChain && <div className="evo-subtitle">Forms</div>}
               <div style={{ display:'flex', flexWrap:'wrap', gap:16 }}>
                 {/* Show the base form first */}
                 {renderMon(formsSource, true)}

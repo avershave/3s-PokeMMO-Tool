@@ -84,7 +84,7 @@ function StatsRow({ mon, other=null, override=null, otherOverride=null, underlin
             <div key={label} className="profile-stat-line">
               <span className="profile-stat-label">{label}</span>
               <div className="profile-stat-bar">
-                <div className="profile-stat-bar-fill" style={{ width: valueToPercent(numericValue), background: color }} />
+                <div className="profile-stat-bar-fill" style={{ width: valueToPercent(numericValue), '--stat-color': color }} />
               </div>
               <span className={'profile-stat-value' + (underline ? ' is-underlined' : '')}>{value ?? '-'}</span>
               {diff != null && diff !== 0 && (
