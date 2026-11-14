@@ -803,7 +803,7 @@ function setupAutoUpdates() {
   try {
     updater.setFeedURL({
       provider: 'github',
-      owner: 'muphy09',
+      owner: 'avershave',
       repo: '3s-PokeMMO-Tool',
     });
   } catch (e) {
