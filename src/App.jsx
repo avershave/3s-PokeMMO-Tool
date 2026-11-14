@@ -11,7 +11,6 @@ import CaughtListButton from './components/CaughtListButton.jsx';
 import AlphaDexButton from './components/AlphaDexButton.jsx';
 import EventDexButton from './components/EventDexButton.jsx';
 import ShinyDexButton from './components/ShinyDexButton.jsx';
-import ThemeButton from './components/ThemeButton.jsx';
 import SponsorButton from './components/SponsorButton.jsx';
 import FeedbackButton from './components/FeedbackButton.jsx';
 import SearchFilter from './components/SearchFilter.jsx';
@@ -4102,14 +4101,6 @@ function App(){
   }, [mode]);
 
 
-  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'classic');
-  useEffect(() => {
-    document.body.classList.remove('theme-classic','theme-white','theme-black','theme-pearl','theme-diamond','theme-red','theme-blue','theme-gold','theme-silver','theme-emerald','theme-neo');
-    document.documentElement.classList.remove('theme-classic','theme-white','theme-black','theme-pearl','theme-diamond','theme-red','theme-blue','theme-gold','theme-silver','theme-emerald','theme-neo');
-    document.body.classList.add(`theme-${theme}`);
-    document.documentElement.classList.add(`theme-${theme}`);
-    try { localStorage.setItem('theme', theme); } catch {}
-  }, [theme]);
   const [showMoveset, setShowMoveset] = useState(false);
   const [showSmogonSets, setShowSmogonSets] = useState(false);
   const [showLocations, setShowLocations] = useState(false);
@@ -4359,22 +4350,13 @@ function App(){
 
   const headerSprite = useMemo(() => {
     const opt = { shiny: !!shinyGlobal };
-    if (theme === 'red') return spriteSources(getMon('Charizard'), opt)[0] || null;
-    if (theme === 'blue') return spriteSources(getMon('Blastoise'), opt)[0] || null;
-    if (theme === 'gold') return spriteSources(getMon('Ho-Oh'), opt)[0] || null;
-    if (theme === 'silver') return spriteSources(getMon('Lugia'), opt)[0] || null;
-    if (theme === 'emerald') return spriteSources(getMon('Rayquaza'), opt)[0] || null;
-    if (theme === 'black') return spriteSources(getMon('Reshiram'), opt)[0] || null;
-    if (theme === 'white') return spriteSources(getMon('Zekrom'), opt)[0] || null;
-    if (theme === 'diamond') return spriteSources(getMon('Dialga'), opt)[0] || null;
-    if (theme === 'pearl') return spriteSources(getMon('Palkia'), opt)[0] || null;
     // Exclude Pokemon with ID >= 650 (Event Pokemon with placeholder images)
     const withSprite = DEX_LIST.filter(d => {
       if (d?.id != null && d.id >= 650) return false;
       return spriteSources(d, opt).length > 0;
     });
     return withSprite.length ? spriteSources(withSprite[Math.floor(Math.random()*withSprite.length)], opt)[0] : null;
-  }, [theme, shinyGlobal]);
+  }, [shinyGlobal]);
   useEffect(() => { document.title = APP_TITLE; }, []);
   const headerSrc = headerSprite || TRANSPARENT_PNG;
 
@@ -6289,7 +6271,6 @@ const marketResults = React.useMemo(() => {
           zIndex:10000
         }}
       >
-        <ThemeButton theme={theme} setTheme={setTheme} />
         <SponsorButton />
       </div>
       <FeedbackButton />
