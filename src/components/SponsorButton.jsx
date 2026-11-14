@@ -5,7 +5,8 @@ const LINKS = [
   { label: 'Paypal', url: 'https://www.paypal.com/paypalme/muphy09' }
 ];
 
-export default function SponsorButton() {
+export default function SponsorButton({ variant }) {
+  const sidebar = variant === 'sidebar';
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -65,11 +66,18 @@ export default function SponsorButton() {
     cursor: 'pointer'
   };
 
+  // Fixed beside the sidebar: the sidebar scrolls, so an absolute window would be clipped.
+  const sidebarWindowStyle = { ...windowStyle, position: 'fixed', left: 212, bottom: 12 };
+
   return (
-    <div ref={ref} style={wrapperStyle}>
-      <button style={btnStyle} type="button" onClick={() => setOpen(v => !v)}>Sponsor</button>
+    <div ref={ref} style={sidebar ? undefined : wrapperStyle}>
+      {sidebar ? (
+        <button type="button" className="shell-row" onClick={() => setOpen(v => !v)}>Sponsor</button>
+      ) : (
+        <button style={btnStyle} type="button" onClick={() => setOpen(v => !v)}>Sponsor</button>
+      )}
       {open && (
-        <div style={windowStyle}>
+        <div style={sidebar ? sidebarWindowStyle : windowStyle}>
           <div>
             You're showing support just by using this tool! If you feel like showing a little extra love, consider a donation - it helps me keep working on this in my spare time.
           </div>
