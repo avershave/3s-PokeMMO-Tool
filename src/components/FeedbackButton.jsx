@@ -43,8 +43,9 @@ export default function FeedbackButton({ variant }) {
     textAlign: 'center'
   };
 
-  // Beside the sidebar instead of the bottom-right corner.
-  const sidebarWindowStyle = { ...windowStyle, right: 'auto', left: 212, bottom: 12 };
+  // Beside the sidebar instead of the bottom-right corner; explicit 16px so it
+  // doesn't inherit the sidebar's 14px.
+  const sidebarWindowStyle = { ...windowStyle, right: 'auto', left: 212, bottom: 12, fontSize: 16 };
 
   return (
     <div ref={ref}>

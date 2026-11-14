@@ -67,7 +67,8 @@ export default function SponsorButton({ variant }) {
   };
 
   // Fixed beside the sidebar: the sidebar scrolls, so an absolute window would be clipped.
-  const sidebarWindowStyle = { ...windowStyle, position: 'fixed', left: 212, bottom: 12 };
+  // Explicit 16px so it doesn't inherit the sidebar's 14px.
+  const sidebarWindowStyle = { ...windowStyle, position: 'fixed', left: 212, bottom: 12, fontSize: 16 };
 
   return (
     <div ref={ref} style={sidebar ? undefined : wrapperStyle}>
