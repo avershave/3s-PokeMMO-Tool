@@ -17,13 +17,12 @@ import { CaughtContext } from './caughtContext.js';
 import { AlphaCaughtContext } from './alphaCaughtContext.js';
 import { ShinyCaughtContext } from './shinyCaughtContext.js';
 import alphaData from '../data/alpha_pokemon.json';
-import alphaIconUrl from '../data/alpha.ico';
 import BreedingSimulator from './components/BreedingSimulator.jsx';
 import TeamBuilder from './components/TeamBuilder.jsx';
 import DaycareManager from './components/DaycareManager.jsx';
 import HordeSearch from './components/HordeSearch.jsx';
-import RecommendedMovesets from './components/RecommendedMovesets.jsx';
 import ResourcesOverlay from './components/ResourcesOverlay.jsx';
+import PokemonProfile from './pages/PokemonProfile.jsx';
 import hordeRegions from '../horderegiondata.json';
 import typeChartImg from '../data/Pokemon_Type_Chart.png';
 import { isOcrEnabled, liveRouteClient, liveBattleClient } from './lib/liveClients.js';
@@ -37,23 +36,20 @@ import {
 } from './lib/areas.js';
 import { PLACEHOLDER_POKEMON, localSpriteCandidates } from './lib/sprites.js';
 import { ITEM_ICON_BASE, ITEM_PLACEHOLDER, ITEM_LIST, ITEM_INDEX } from './lib/items.js';
-import { calcCatchChance, STATUS_EFFECT_BUTTONS, STATUS_MULTIPLIERS, BALL_OPTIONS } from './lib/catch.js';
+import { calcCatchChance, STATUS_MULTIPLIERS, BALL_OPTIONS } from './lib/catch.js';
 import { DEX_LIST, DEX_BY_NAME, getMon, getMonByDex } from './lib/dexData.js';
 import { useNatures } from './lib/natures.js';
 import {
   getBaseStatsFrom, getDisplayStatsFrom, computeFinalStats, mkInitialBuild, isDirty, coerceBuild, underlineFrom,
 } from './lib/stats.js';
-import { formatHeight, formatWeight, formatGenderRatio } from './lib/format.js';
+import { groupMoves } from './lib/moves.js';
 import Sprite from './components/pokemon/Sprite.jsx';
 import TypePill from './components/pokemon/TypePill.jsx';
 import AbilityPill, { useAbilityDesc } from './components/pokemon/AbilityPill.jsx';
 import StatsRow from './components/pokemon/StatsRow.jsx';
 import NatureSelect from './components/pokemon/NatureSelect.jsx';
-import EvolutionChain from './components/pokemon/EvolutionChain.jsx';
-import MovesTable from './components/pokemon/MovesTable.jsx';
 import MethodPill from './components/pokemon/MethodPill.jsx';
 import RarityPill from './components/pokemon/RarityPill.jsx';
-import BallSelect from './components/pokemon/BallSelect.jsx';
 import DelayedTooltip from './components/pokemon/DelayedTooltip.jsx';
 import PokeballIcon from './components/pokemon/PokeballIcon.jsx';
 
@@ -173,44 +169,6 @@ const POKE_NAME_COMPACT_REGEX = buildNameRegex((k) => k.replace(/[^a-z0-9]+/g, "
 
 function normalizeEggGroup(g=''){
   return String(g).toLowerCase().replace('warer','water').replace('hmanoid','humanoid').trim();
-}
-
-const MOVE_METHODS = [
-  { key:'start', label:'Start' },
-  { key:'lv', label:'Level' },
-  { key:'tutor', label:'Tutor' },
-  { key:'tmhm', label:'TM/HM' },
-  { key:'egg', label:'Egg' },
-  { key:'special', label:'Special' }
-];
-
-function groupMoves(list = []){
-  const out = { start: [], lv: [], tutor: [], tmhm: [], egg: [], special: [] };
-  for (const mv of list){
-    switch(mv.type){
-      case 'level':
-        if (mv.level <= 1) out.start.push(mv.name);
-        else out.lv.push({ level: mv.level, move: mv.name });
-        break;
-      case 'move_tutor':
-        out.tutor.push(mv.name);
-        break;
-      case 'move_learner_tools':
-        out.tmhm.push(mv.name);
-        break;
-      case 'egg_moves':
-        out.egg.push(mv.name);
-        break;
-      case 'special_moves':
-      case 'special_egg':
-        out.special.push(mv.name);
-        break;
-      default:
-        break;
-    }
-  }
-  out.lv.sort((a,b) => a.level - b.level);
-  return out;
 }
 
 const EGG_GROUP_COLORS = {
@@ -2100,9 +2058,6 @@ function App(){
     }
   }, [mode]);
 
-  const [showMoveset, setShowMoveset] = useState(false);
-  const [showSmogonSets, setShowSmogonSets] = useState(false);
-  const [showLocations, setShowLocations] = useState(false);
   const [statusEffect, setStatusEffect] = useState(null);
   const [isOneHp, setIsOneHp] = useState(false);
   const [selectedBallKey, setSelectedBallKey] = useState(BALL_OPTIONS[0].key);
@@ -2379,9 +2334,6 @@ function App(){
     if (!typeFilter) setTypeFilter2('');
   }, [typeFilter]);
   useEffect(() => {
-    setShowMoveset(false);
-    setShowSmogonSets(false);
-    setShowLocations(false);
     setStatusEffect(null);
     setIsOneHp(false);
     setSelectedBallKey(BALL_OPTIONS[0].key);
@@ -3692,417 +3644,63 @@ const marketResults = React.useMemo(() => {
         </div>
 
         {/* Detail Panel (Pokemon) */}
-          {mode==='pokemon' && resolved && !(compareMode && (compareA || compareB)) && (
-             <>
-            <div ref={detailRef} className="grid">
-            {/* Left: Pokemon card */}
-            {(() => {
-              const evMap = {
-                ev_hp: 'HP',
-                ev_attack: 'Atk',
-                ev_defense: 'Def',
-                ev_sp_attack: 'Sp. Atk',
-                ev_sp_defense: 'Sp. Def',
-                ev_speed: 'Spd'
-              };
-              const yields = resolved.yields || {};
-              const evParts = Object.entries(evMap)
-                .filter(([key]) => (yields[key] || 0) > 0)
-                .map(([key, label]) => `${yields[key]} ${label}`);
-              const evText = evParts.length ? evParts.join(', ') : 'None';
-              const rawHeldItems = resolved.heldItems || [];
-              const heldItems = [];
-              const seenHeld = new Set();
-              for (const h of rawHeldItems) {
-                if (!h) continue;
-                const normName = normalizeKey(typeof h === 'string' ? h : h.name || '');
-                const dedupeKey = h.id != null ? `id-${h.id}` : `name-${normName}`;
-                if (seenHeld.has(dedupeKey)) continue;
-                seenHeld.add(dedupeKey);
-                heldItems.push(h);
-              }
-              // Deduplicate abilities while preserving order and keeping blanks for empty slots
-              const rawAbilities = (resolved.abilities || []).map(a => a?.name).filter(Boolean);
-              const abilityNames = [];
-              const seenAbilities = new Set();
-              for (let i = 0; i < 3; i++) {
-                const abilityName = rawAbilities[i];
-                if (abilityName && !seenAbilities.has(abilityName)) {
-                  abilityNames.push(abilityName);
-                  seenAbilities.add(abilityName);
-                } else if (abilityName && seenAbilities.has(abilityName)) {
-                  abilityNames.push(undefined); // Keep slot but make it blank
-                } else {
-                  abilityNames.push(undefined);
-                }
-              }
-              const useCompactAbilities = abilityNames.filter(Boolean).some(a => (a || '').length > 12) || abilityNames.filter(Boolean).join('').length > 28;
-              const renderHeldItem = (h, idx) => {
-                const item = ITEM_INDEX.byId.get(h.id) || ITEM_INDEX.byName.get(normalizeKey(h.name || h));
-                return (
-                  <span key={h.id || h.name || idx} className="profile-held-item">
-                    <img
-                      src={h.id ? `${ITEM_ICON_BASE}${h.id}.png` : ITEM_PLACEHOLDER}
-                      alt={h.name || h}
-                      onError={(e) => {
-                        e.currentTarget.onerror = null;
-                        e.currentTarget.src = ITEM_PLACEHOLDER;
-                        e.currentTarget.style.imageRendering = 'auto';
-                      }}
-                    />
-                    <DelayedTooltip content={item?.description || ''}>
-                      <span className="profile-held-name">{h.name || h}</span>
-                    </DelayedTooltip>
-                  </span>
-                );
-              };
-
-              return (
-                <div style={{ ...styles.card, position:'relative', padding:0, overflow:'hidden' }} className="pokemon-profile-card">
-                  <button
-                    type="button"
-                    className="profile-close-button"
-                    onClick={() => { setSelected(null); setQuery(''); }}
-                    title="Close profile"
-                    aria-label="Close profile"
-                  >
-                    ×
-                  </button>
-                  <div className="profile-hero">
-                    <div className="profile-hero-top">
-                      <div className="profile-hero-actions-left">
-                        <button
-                          type="button"
-                          className={`profile-compare-btn${compareMode ? ' is-active' : ''}`}
-                          aria-pressed={compareMode}
-                          onClick={() => {
-                            setCompareMode(true);
-                            setCompareA(resolved);
-                            setCompareB(null);
-                            setSelected(null);
-                            setQuery('');
-                          }}
-                          title="Compare"
-                        >
-                          Compare
-                        </button>
-                      </div>
-                      <div className="profile-hero-actions-right">
-                        {ALPHA_ID_SET.has(resolved.id) && (
-                          <button
-                            type="button"
-                            className="profile-icon-button"
-                            onClick={() => toggleAlphaCaught(resolved.id)}
-                            title={alphaCaught.has(resolved.id) ? 'Mark Alpha as uncaught' : 'Mark Alpha as caught'}
-                          >
-                            <img src={alphaIconUrl} alt="Alpha Caught" style={{ width:20, height:20, opacity: alphaCaught.has(resolved.id) ? 1 : 0.35 }} />
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          className="profile-icon-button"
-                          onClick={() => toggleCaught(resolved.id)}
-                          title={caught.has(resolved.id) ? 'Mark as uncaught' : 'Mark as caught'}
-                        >
-                          <PokeballIcon filled={caught.has(resolved.id)} />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="profile-hero-main">
-                      <div className="profile-sprite-wrap">
-                        <Sprite mon={selected} size={140} alt={resolved.name} forceShiny={profileShiny} playOnHover />
-                        <button
-                          type="button"
-                          className={`profile-shiny-toggle${profileShiny || shinyGlobal ? ' is-active' : ''}`}
-                          onClick={() => setProfileShiny(v => !v)}
-                          title="Toggle shiny sprite"
-                        >
-                          <svg width="18" height="18" viewBox="0 0 24 24" role="img" aria-label="Shiny">
-                            <polygon
-                              points="12,2 14.9,8.1 22,9 16.8,13.4 18.3,20.4 12,16.9 5.7,20.4 7.2,13.4 2,9 9.1,8.1"
-                              fill={profileShiny || shinyGlobal ? '#d4af37' : '#ffffff'}
-                              stroke={profileShiny || shinyGlobal ? '#9b7d22' : '#888888'}
-                              strokeWidth="1.2"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        </button>
-                      </div>
-                      <div className="profile-hero-info">
-                        <div className="profile-name-row">
-                          <span className="profile-name">{titleCase(resolved.name)}</span>
-                          <span className="profile-dex">#{String(resolved.id).padStart(3,'0')}</span>
-                        </div>
-                        <div className="profile-type-row">
-                          {(resolved.types || []).map((tp, idx) => (
-                            <TypePill
-                              key={`${tp}-${idx}`}
-                              t={tp}
-                              onClick={() => {
-                                setMode('pokemon');
-                                setSelected(null);
-                                setQuery('');
-                                setTypeFilter(normalizeType(tp));
-                                setTypeFilter2('');
-                              }}
-                            />
-                          ))}
-                          {!resolved.types?.length && <span className="label-muted">Unknown</span>}
-                        </div>
-                        <div className="profile-hero-meta-grid">
-                          <div className="profile-meta-item">
-                            <span className="profile-meta-label">Exp</span>
-                            <span className="profile-meta-value">{titleCase((resolved.expType || '').replace(/_/g, ' ')) || '—'}</span>
-                          </div>
-                          <div className="profile-meta-item">
-                            <span className="profile-meta-label">Egg Group</span>
-                            {(() => {
-                              const eggGroups = (resolved.eggGroups || []).filter(Boolean);
-                              const eggGroupText = eggGroups.map(titleCase).join(' / ');
-                              return (
-                                <span className={`profile-meta-value${eggGroupText ? '' : ' label-muted'}`}>
-                                  {eggGroupText || 'None'}
-                                </span>
-                              );
-                            })()}
-                          </div>
-                          <div className="profile-meta-item">
-                            <span className="profile-meta-label">Height</span>
-                            <span className="profile-meta-value">{formatHeight(resolved.height)}</span>
-                          </div>
-                          <div className="profile-meta-item">
-                            <span className="profile-meta-label">Weight</span>
-                            <span className="profile-meta-value">{formatWeight(resolved.weight)}</span>
-                          </div>
-                          <div className="profile-meta-item">
-                            <span className="profile-meta-label">Gender</span>
-                            <span className="profile-meta-value">{formatGenderRatio(resolved.genderRatio)}</span>
-                          </div>
-                          <div className="profile-meta-item">
-                            <span className="profile-meta-label">Obtainable</span>
-                            <span className="profile-meta-value">{resolved.obtainable ? 'Yes' : 'No'}</span>
-                          </div>
-                        </div>
-                        {resolved.forms?.length > 1 && (
-                          <div className="profile-forms-row">
-                            <span className="profile-forms-label">Forms</span>
-                            <div className="profile-forms-list">
-                              {resolved.forms.map(f => (
-                                <span key={f.form_id || f.id} className="profile-form-pill">{f.name}</span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="profile-body">
-                    <div className="profile-column-left">
-                      <div className="profile-section-card">
-                        <div className="profile-section-header">
-                          <span className="profile-section-title">Base Stats</span>
-                        </div>
-                        <StatsRow
-                          mon={resolved}
-                          override={singleOverride}
-                          underlineKeys={singleUnderline}
-                          build={singleBuild}
-                          onSetIV={singleSetters.onSetIV}
-                          onSetEV={singleSetters.onSetEV}
-                          onSetLevel={singleSetters.onSetLevel}
-                          natureEl={<NatureSelect natureList={natureList} value={singleBuild.nature} onChange={(v)=> setSingleBuild(prev=> ({...prev, nature:v}))} />}
-                        />
-                      </div>
-                      <div className="profile-section-card">
-                        <div className="profile-section-title">Type Matchups</div>
-                        {(() => {
-                          const blocks = [
-                            { title: '4x Weak', list: resolved.weakness.x4 || [] },
-                            { title: '2x Weak', list: resolved.weakness.x2 || [] },
-                            { title: '0.5x Resist', list: resolved.weakness.x0_5 || [] },
-                            { title: '0.25x Resist', list: resolved.weakness.x0_25 || [] },
-                            { title: '0x Immune', list: resolved.weakness.x0 || [] },
-                          ].filter(b => (b.list?.length || 0) > 0);
-                          if (!blocks.length) {
-                            return <div className="label-muted">No notable matchups.</div>;
-                          }
-                          const compact = blocks.length === 5;
-                          return (
-                            <div className={`profile-matchups-grid${compact ? ' is-compact' : ''}`}>
-                              {blocks.map((b, i) => (
-                                <div key={`${b.title}-${i}`} className="profile-matchup-card">
-                                  <span className="profile-matchup-title">{b.title}</span>
-                                  <div className="profile-matchup-types">
-                                    {b.list.map((t) => (
-                                      <TypePill key={`${b.title}-${t}`} t={t} compact={compact} />
-                                    ))}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                      <div className="profile-section-card">
-                        <EvolutionChain mon={resolved} onSelect={(m)=>{ setSelected(m); setShowSmogonSets(false); setShowMoveset(false); }} showTitle={false} />
-                      </div>
-                    </div>
-                    <div className="profile-column-right">
-                      <div className="profile-section-card">
-                        <div className="profile-section-title">Abilities</div>
-                        <div className="profile-ability-list">
-                          {[0,1,2].map((i) => (
-                            <AbilityPill key={`ability-${i}`} label={i === 2 ? 'Hidden' : `${i + 1}`} name={abilityNames[i]} compact={useCompactAbilities} />
-                          ))}
-                          {!abilityNames.length && <span className="label-muted">None</span>}
-                        </div>
-                      </div>
-                      <div className="profile-section-card">
-                        <div className="profile-section-title">Held Items</div>
-                        <div className="profile-held-list">
-                          {heldItems.length ? heldItems.map(renderHeldItem) : (
-                            <span className="label-muted">None</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="profile-section-card">
-                        <div className="profile-section-title">Misc</div>
-                        <div className="profile-metric-grid">
-                          <div className="profile-metric-item profile-metric-item--ev">
-                            <span className="profile-metric-label">EV Yield</span>
-                            <span className="profile-metric-value">{evText}</span>
-                          </div>
-                          <div className="profile-metric-item profile-metric-item--catch-rate">
-                            <span className="profile-metric-label">Catch Rate</span>
-                            <span className="profile-metric-value">{resolved.catchRate ?? 'N/A'}</span>
-                          </div>
-                          <div className="profile-metric-item profile-metric-item--catch">
-                            <div className="profile-metric-catch-header">
-                              <span className="profile-metric-label">Catch %</span>
-                              <BallSelect value={selectedBallKey} onChange={setSelectedBallKey} />
-                            </div>
-                            <div className="profile-metric-catch-display">
-                              <span className="profile-metric-value profile-metric-value--catch">
-                                {catchPercent != null ? `${catchPercent.toFixed(1)}%` : 'N/A'}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="profile-metric-item profile-metric-item--status">
-                            <span className="profile-metric-label">Catch Mods</span>
-                            <div className="profile-status-grid">
-                              <button
-                                type="button"
-                                className={`profile-chip-button${isOneHp ? ' is-active danger' : ''}`}
-                                onClick={() => setIsOneHp(v => !v)}
-                              >
-                                1 HP
-                              </button>
-                              {STATUS_EFFECT_BUTTONS.map(({ key, label }) => (
-                                <button
-                                  key={key}
-                                  type="button"
-                                  className={`profile-chip-button${statusEffect === key ? ' is-active' : ''}`}
-                                  onClick={() => toggleStatusEffect(key)}
-                                >
-                                  {label}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-            {/* Right: Locations */}
-            <div style={{ ...styles.card, marginTop:16 }}>
-             <div
-                className="label-muted"
-                style={{ fontWeight:700, cursor:'pointer', marginBottom: showLocations ? 6 : 0 }}
-                onClick={() => setShowLocations(v => !v)}
-              >
-                {showLocations ? '▾' : '▸'} Locations
-              </div>
-              {showLocations && (
-                <>
-                  {byRegion.length === 0 && (<div className="label-muted">No wild locations found.</div>)}
-                  {byRegion.map(([reg, list]) => (
-                    <div key={reg} style={{ marginBottom:12 }}>
-                      <div style={{ fontWeight:800, marginBottom:6 }}>{reg}</div>
-                      <div style={{ display:'grid', gap:8 }}>
-                        {list.map((loc, i) => (
-                          <div
-                            key={i}
-                            style={{ border:'1px solid var(--divider)', borderRadius:10, padding:'8px 10px', background:'var(--surface)', cursor:'pointer' }}
-                              onClick={() => {
-                                setMode('areas');
-                                setAreaRegion(reg);
-                                // Remove any parenthetical notes from the location name
-                                setAreaQuery(loc.map.replace(/\s*\([^)]*\)/g, '').trim());
-                                setShowLocations(false);
-                                // The shell's main area scrolls, not the window.
-                                document.querySelector('.shell-main')?.scrollTo({ top: 0, behavior: 'smooth' });
-                              }}
-                            >
-                            <div style={{ fontWeight:700 }}>{loc.map}</div>
-                            {(loc.min || loc.max) && (
-                              <div className="label-muted" style={{ marginTop:4 }}>
-                                {loc.min && loc.max ? `Lv ${loc.min}-${loc.max}` : `Lv ${loc.min || loc.max}`}
-                              </div>
-                            )}
-                            <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginTop:4 }}>
-                              {(Array.isArray(loc.method) ? loc.method : [loc.method])
-                                .filter(Boolean)
-                                .map((m, j) => <MethodPill key={`m-${i}-${j}-${m}`} method={m} />)}
-                              {!(Array.isArray(loc.method) ? loc.method : [loc.method])
-                                .some(m => /lure/i.test(m || '')) &&
-                                (Array.isArray(loc.rarity) ? loc.rarity : [loc.rarity])
-                                  .filter(Boolean)
-                                  .map((r, j) => <RarityPill key={`r-${i}-${j}-${r}`} rarity={r} hordeSize={loc.hordeSize} />)}
-                            </div>
-                          </div>
-                        ))}
-                  </div>
-                </div>
-                  ))}
-                </>
-              )}
-        </div>
-          </div>
-
-          <div style={{ ...styles.card, marginTop:16 }}>
-            <RecommendedMovesets
-              speciesName={resolved?.name}
-              expanded={showSmogonSets}
-              onToggle={() => setShowSmogonSets(v => !v)}
+        {mode==='pokemon' && resolved && !(compareMode && (compareA || compareB)) && (
+          <div ref={detailRef}>
+            <PokemonProfile
+              key={resolved.id ?? resolved.name}
+              mon={resolved}
+              spriteMon={selected}
+              caught={{ isCaught: caught.has(resolved.id), toggle: () => toggleCaught(resolved.id) }}
+              alpha={{
+                eligible: ALPHA_ID_SET.has(resolved.id),
+                isCaught: alphaCaught.has(resolved.id),
+                toggle: () => toggleAlphaCaught(resolved.id),
+              }}
+              shiny={{ on: profileShiny || shinyGlobal, toggle: () => setProfileShiny(v => !v) }}
+              build={{
+                value: singleBuild,
+                set: setSingleBuild,
+                override: singleOverride,
+                underline: singleUnderline,
+                setters: singleSetters,
+                natureList,
+              }}
+              catchInfo={{
+                ballKey: selectedBallKey,
+                setBallKey: setSelectedBallKey,
+                percent: catchPercent,
+                oneHp: isOneHp,
+                setOneHp: setIsOneHp,
+                status: statusEffect,
+                toggleStatus: toggleStatusEffect,
+              }}
+              locations={byRegion}
+              onClose={() => { setSelected(null); setQuery(''); }}
+              onCompare={() => {
+                setCompareMode(true);
+                setCompareA(resolved);
+                setCompareB(null);
+                setSelected(null);
+                setQuery('');
+              }}
+              onTypeClick={(tp) => {
+                setMode('pokemon');
+                setSelected(null);
+                setQuery('');
+                setTypeFilter(normalizeType(tp));
+                setTypeFilter2('');
+              }}
+              onSelectMon={setSelected}
+              onOpenArea={(region, mapName) => {
+                setMode('areas');
+                setAreaRegion(region);
+                // Remove any parenthetical notes from the location name
+                setAreaQuery(mapName.replace(/\s*\([^)]*\)/g, '').trim());
+                // The shell's main area scrolls, not the window.
+                document.querySelector('.shell-main')?.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
             />
           </div>
-          {MOVE_METHODS.some(m => (resolved.moves?.[m.key] || []).length) && (
-            <div style={{ ...styles.card, marginTop:16 }}>
-              <div
-                className="label-muted"
-                style={{ fontWeight:700, cursor:'pointer', marginBottom: showMoveset ? 6 : 0 }}
-                onClick={() => setShowMoveset(v => !v)}
-              >
-                {showMoveset ? '▾' : '▸'} Moves
-              </div>
-              {showMoveset && (
-                <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                  {MOVE_METHODS.map(m => (
-                    <MovesTable
-                      key={m.key}
-                      title={m.label}
-                      moves={resolved.moves[m.key] || []}
-                      showLevel={m.key === 'lv'}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-          </>
         )}
       </div>
       </AppShell>

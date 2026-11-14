@@ -82,7 +82,7 @@ function useMoveData(name){
   return data || null;
 }
 
-const moveCell = { padding:'2px 4px', border:'1px solid var(--divider)' };
+const moveCell = { padding:'5px 6px', borderBottom:'1px solid var(--divider)' };
 
 function formatMoveLabel(name=''){
   if (!name) return '';
@@ -225,8 +225,8 @@ function MovesTable({ title, moves = [], showLevel = false }) {
   const sortArrow = key => (sort.key === key ? (sort.dir === 1 ? '\u25B2' : '\u25BC') : '');
 
   return (
-    <div style={{ border: '1px solid var(--divider)', borderRadius: 8, padding: '8px 10px', background: 'var(--surface)' }}>
-      <div style={{ fontWeight: 700, marginBottom: 4 }}>{title}</div>
+    <div className="moves-table">
+      <div className="moves-table-title">{title}</div>
       {sorted.length ? (
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
           <colgroup>
