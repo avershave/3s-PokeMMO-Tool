@@ -23,16 +23,15 @@ export default function LiveStatus({ client = liveRouteClient, onOpen }) {
   }), [client]);
 
   // The status shows from launch, before the Route page has connected the
-  // client. connect() is idempotent and respects the OCR on/off setting.
+  // client. connect() is idempotent and respects the OCR on/off setting. After
+  // that first call the client retries every 1.5 s itself, so the poll below
+  // only reads the state.
   useEffect(() => {
     client.connect?.();
     const id = setInterval(() => {
       const isOpen = client.isOpen();
       setOpen(isOpen);
-      if (!isOpen) {
-        setRoute('');
-        client.connect?.();
-      }
+      if (!isOpen) setRoute('');
     }, POLL_MS);
     return () => clearInterval(id);
   }, [client]);

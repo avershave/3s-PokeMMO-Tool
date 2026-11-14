@@ -141,8 +141,10 @@ button.pp-type:hover {
 }
 
 .pp-facts dt {
+  /* Full white, set apart by weight: headers are darkened only until white
+     reaches 3:1, so any opacity drops below it on Electric, Ice and Ground. */
   font-size: 12px;
-  opacity: 0.7;
+  font-weight: 600;
 }
 
 .pp-facts dd {
@@ -230,7 +232,8 @@ button.pp-type:hover {
   padding: 0 4px;
 }
 
-@media (max-width: 899.98px) {
+/* A container query, not a media query, so it follows Options -> UI scale. */
+@container pp (max-width: 720px) {
   .pp-body {
     grid-template-columns: minmax(0, 1fr);
   }

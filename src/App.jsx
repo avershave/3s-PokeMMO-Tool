@@ -927,7 +927,7 @@ function coerceBattleIncoming(msg){
 /* ======================= LIVE ROUTE PANEL ======================= */
 
 function LiveRoutePanel({ areasIndex, locIndex, onViewMon }){
-  const [ocrEnabled, setOcrEnabled] = useState(isOcrEnabled());
+  const [ocrEnabled, setOcrEnabled] = useState(isOcrEnabled);
   // Restore last confirmed route so it persists between tab switches
   const LAST_KEY = 'liveRouteLast';
   const lastRoute = (() => {
@@ -1370,7 +1370,7 @@ function LiveRoutePanel({ areasIndex, locIndex, onViewMon }){
 
 /* ======================= LIVE BATTLE PANEL ======================= */
 function LiveBattlePanel({ onViewMon, onCompare }){
-  const [ocrEnabled, setOcrEnabled] = useState(isOcrEnabled());
+  const [ocrEnabled, setOcrEnabled] = useState(isOcrEnabled);
   const [rawText, setRawText] = useState('');
   const [confidence, setConfidence] = useState(null);
   const [mons, setMons] = useState([]);
@@ -1970,10 +1970,8 @@ function App(){
       const pokemonName = data.pokemonName;
       const isAlpha = data.isAlpha;
 
-      // Find the Pokemon in the dex by name
-      const pokemon = DEX.find(p =>
-        p.name?.toLowerCase() === pokemonName.toLowerCase()
-      );
+      // Find the Pokemon in the dex by name (getMon normalises case and punctuation)
+      const pokemon = getMon(pokemonName);
 
       if (!pokemon) {
         console.warn('[AutoCatch] Pokemon not found in dex:', pokemonName);
@@ -2149,7 +2147,7 @@ function App(){
 
   // OCR toggle from Options. Keep both live clients in step even when their
   // page isn't open, so the sidebar live status recovers when OCR comes back.
-  const [ocrEnabled, setOcrEnabled] = useState(isOcrEnabled());
+  const [ocrEnabled, setOcrEnabled] = useState(isOcrEnabled);
   useEffect(() => {
     const onChange = (e) => {
       const en = !!(e?.detail?.enabled ?? isOcrEnabled());
@@ -3707,10 +3705,7 @@ const marketResults = React.useMemo(() => {
 
       {showTypeChart && (
         <div
-          onClick={() => {
-            setShowTypeChart(false);
-            setMode('pokemon');
-          }}
+          onClick={() => setShowTypeChart(false)}
           style={{
             position:'fixed',
             top:0,
