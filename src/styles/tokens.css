@@ -1,0 +1,14 @@
+/* src/styles/tokens.css - style C design tokens */
+:root {
+  --c-bg: #23262D;
+  --c-sidebar: #1C1F25;
+  --c-surface: #2C3038;
+  --c-line: #353A44;
+  --c-text: #E9EAEE;
+  --c-muted: #8A8F9C;
+  --c-live: #7BD88F;
+
+  --f-display: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+  --f-body: 'Barlow', ui-sans-serif, system-ui, sans-serif;
+  --f-num: 'Barlow Semi Condensed', ui-sans-serif, system-ui, sans-serif;
+}
