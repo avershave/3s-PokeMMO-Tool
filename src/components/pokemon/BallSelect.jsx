@@ -10,7 +10,7 @@ function BallSelect({ value, onChange }) {
   const updateMenuMaxHeight = React.useCallback(() => {
     if (!ref.current) return;
     const wrap = ref.current;
-    const container = wrap.closest('.pokemon-profile-card');
+    const container = wrap.closest('.pokemon-profile');
     const button = wrap.querySelector('.profile-ball-select-button');
     const menu = wrap.querySelector('.profile-ball-select-menu');
     if (!container || !button || !menu) {
