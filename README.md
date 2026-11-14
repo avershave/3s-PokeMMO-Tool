@@ -19,7 +19,7 @@ It is designed for **Generations 1–5 only**, matching PokéMMO’s supported r
 ---
 
 ## 📥 Installation
-1. Go to the [Releases](https://github.com/muphy09/3s-PokeMMO-Tool/releases) page.
+1. Go to the [Releases](https://github.com/avershave/3s-PokeMMO-Tool/releases) page.
 2. Download the build for your OS:
    - **Windows** – `.exe` installer (includes Live Route & Live Battle)
    - **Linux** – `.AppImage` bundle (includes Live Route & Live Battle with bundled OCR assets)
@@ -48,6 +48,28 @@ A phone companion that shows tags for the Pokémon you are battling as an overla
 **Suggest a tag fix:** open an issue at [avershave/3s-PokeMMO-Tool/issues](https://github.com/avershave/3s-PokeMMO-Tool/issues).
 
 Device testing notes: [android/DEVICE_TEST.md](android/DEVICE_TEST.md)
+
+---
+
+## 🏷️ Cutting a release
+
+Releases are built by GitHub Actions when a tag is pushed. Tag a commit that is already on `main`:
+
+| Release | Tag | Workflow | What it publishes |
+|---|---|---|---|
+| Desktop | `vX.Y.Z` (e.g. `v3.4.1`) | `release.yml` | Windows installer, Linux AppImage, macOS dmg, plus the auto-update files |
+| Android | `android-vX.Y.Z` (e.g. `android-v1.0.1`) | `android.yml` | Signed `3s-PokeMMO-Overlay-X.Y.Z.apk` |
+
+```bash
+git checkout main && git pull
+git tag v3.4.1 && git push origin v3.4.1                  # desktop
+git tag android-v1.0.1 && git push origin android-v1.0.1  # Android
+```
+
+- The version comes from the tag: the desktop workflow stamps it into `package.json` before building, and the Android build uses it as the app's version name.
+- Installed desktop apps update themselves from this repo's releases.
+- Android releases are signed with the key in the `ANDROID_KEYSTORE_*` / `ANDROID_KEY_*` repository secrets. Keep that key; an APK signed with a different key can't update the installed app.
+- Telemetry is optional: without the `POKEMMO_TOOL_TELEMETRY_*` secrets the desktop build ships with telemetry off.
 
 ---
 
