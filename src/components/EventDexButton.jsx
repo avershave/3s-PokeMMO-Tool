@@ -104,8 +104,15 @@ const EVENT_DEX_LIST = dexRaw
   }))
   .sort((a, b) => a.id - b.id);
 
-export default function EventDexButton(){
+export default function EventDexButton({ renderTrigger = true }){
   const [open, setOpen] = useState(false);
+
+  // Allow opening from the sidebar or other triggers
+  useEffect(() => {
+    const handler = (e) => { if (e.detail?.dex === 'event') setOpen(true); };
+    window.addEventListener('open-dex', handler);
+    return () => window.removeEventListener('open-dex', handler);
+  }, []);
   const [query, setQuery] = useState('');
 
   const btnStyle = {
@@ -149,7 +156,7 @@ export default function EventDexButton(){
 
   return (
     <>
-      <button style={btnStyle} onClick={()=>setOpen(true)} title="Event Dex">Event Dex</button>
+      {renderTrigger && <button style={btnStyle} onClick={()=>setOpen(true)} title="Event Dex">Event Dex</button>}
       {open && (
         <div style={overlayStyle} onClick={()=>setOpen(false)}>
           <div style={modalStyle} onClick={e=>e.stopPropagation()}>

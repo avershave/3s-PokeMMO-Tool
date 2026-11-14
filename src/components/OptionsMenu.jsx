@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { UI_SCALE_EVENT } from "../lib/uiScale.js";
 
 const OCR_AGGRESSIVENESS_OPTIONS = [
   { value: 'fast', label: 'Fast' },
@@ -43,7 +44,7 @@ function clampOcrZoomValue(value, fallback = 0.5) {
  *  - Reload OCR (Windows & Linux) → restarts helper AND signals Live tab to reconnect/clear
  *  - Refresh app       → full renderer refresh
  */
-export default function OptionsMenu({ style = {}, ocrSupported = false }) {
+export default function OptionsMenu({ style = {}, ocrSupported = false, variant }) {
   const [open, setOpen] = useState(false);
   const [toast, setToast] = useState(null); // { text, kind } | null
   const menuRef = useRef(null);
@@ -94,6 +95,7 @@ export default function OptionsMenu({ style = {}, ocrSupported = false }) {
     // so 50% appears as the normal 100% size.
     document.body.style.zoom = 0.5 + scale / 100;
     localStorage.setItem("uiScaleV2", String(scale));
+    window.dispatchEvent(new Event(UI_SCALE_EVENT));
   }, [scale]);
 
   // auto-hide toast
@@ -561,9 +563,11 @@ export default function OptionsMenu({ style = {}, ocrSupported = false }) {
     cursor: "pointer",
     boxShadow: "var(--shadow-1)",
   };
+  // Explicit base size: in the sidebar the window would inherit its 14px.
   const overlayStyle = {
     position: 'fixed',
     inset: 0,
+    fontSize: 16,
     background: 'rgba(0,0,0,0.72)',
     zIndex: 20000,
     display: 'flex',
@@ -767,6 +771,7 @@ export default function OptionsMenu({ style = {}, ocrSupported = false }) {
     position: 'fixed',
     right: 24,
     bottom: 24,
+    fontSize: 16,
     padding: '10px 16px',
     borderRadius: 12,
     border: '1px solid var(--divider)',
@@ -1112,15 +1117,27 @@ export default function OptionsMenu({ style = {}, ocrSupported = false }) {
 
   return (
     <div ref={menuRef} style={{ position: 'relative', ...style }}>
-      <button
-        style={btnStyle}
-        onClick={() => setOpen((v) => !v)}
-        title="Options"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-      >
-        Options ▾
-      </button>
+      {variant === 'sidebar' ? (
+        <button
+          type="button"
+          className="shell-row"
+          onClick={() => setOpen((v) => !v)}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+        >
+          Options
+        </button>
+      ) : (
+        <button
+          style={btnStyle}
+          onClick={() => setOpen((v) => !v)}
+          title="Options"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+        >
+          Options ▾
+        </button>
+      )}
 
       {open && (
         <div style={overlayStyle} onClick={() => setOpen(false)}>

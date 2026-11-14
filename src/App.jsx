@@ -1,37 +1,31 @@
 ﻿import React, { useEffect, useMemo, useState, useRef, useContext } from 'react';
 import './index.css';
 import dexRaw from '../UpdatedDex.json';
-import itemsRaw from '../itemdata.json';
 import catchRates from '../data/catch-rates.json';
-import VersionBadge from "./components/VersionBadge.jsx";
-import OptionsMenu from './components/OptionsMenu.jsx';
-import PatchNotesButton, { openPatchNotes } from './components/PatchNotesButton.jsx';
+import { openPatchNotes } from './components/PatchNotesButton.jsx';
 import ColorPickerButton from './components/ColorPickerButton.jsx';
 import CaughtListButton from './components/CaughtListButton.jsx';
 import AlphaDexButton from './components/AlphaDexButton.jsx';
 import EventDexButton from './components/EventDexButton.jsx';
 import ShinyDexButton from './components/ShinyDexButton.jsx';
-import ThemeButton from './components/ThemeButton.jsx';
-import SponsorButton from './components/SponsorButton.jsx';
-import FeedbackButton from './components/FeedbackButton.jsx';
 import SearchFilter from './components/SearchFilter.jsx';
-import HomeScreen from './components/HomeScreen.jsx';
+import AppShell from './components/shell/AppShell.jsx';
+import { DEFAULT_MODE, openDex } from './lib/nav.js';
 import CatchNotification from './components/CatchNotification.jsx';
 import { ColorContext, DEFAULT_METHOD_COLORS, DEFAULT_RARITY_COLORS } from './colorConfig.js';
 import { CaughtContext } from './caughtContext.js';
 import { AlphaCaughtContext } from './alphaCaughtContext.js';
 import { ShinyCaughtContext } from './shinyCaughtContext.js';
 import alphaData from '../data/alpha_pokemon.json';
-import alphaIconUrl from '../data/alpha.ico';
 import BreedingSimulator from './components/BreedingSimulator.jsx';
 import TeamBuilder from './components/TeamBuilder.jsx';
 import DaycareManager from './components/DaycareManager.jsx';
 import HordeSearch from './components/HordeSearch.jsx';
-import RecommendedMovesets from './components/RecommendedMovesets.jsx';
 import ResourcesOverlay from './components/ResourcesOverlay.jsx';
+import PokemonProfile from './pages/PokemonProfile.jsx';
 import hordeRegions from '../horderegiondata.json';
 import typeChartImg from '../data/Pokemon_Type_Chart.png';
-import movesData from '../data/moves.json';
+import { isOcrEnabled, liveRouteClient, liveBattleClient } from './lib/liveClients.js';
 import { TYPE_CHART, titleCase, normalizeType, computeWeakness } from './lib/typeChart.js';
 import {
   buildHordeSizeMap, getHordeSize, normalizeAreaName, stripSeason, normalizeKey, normalizeRegion,
@@ -40,33 +34,37 @@ import {
   extractTimeTag, stripTimeTag, mapNameMatches, lookupRarity, LIVE_ALIASES, simplifyName, tokenizeName,
   aliasKey, scoreNames, findBestMapName, findBestMapInText, listRegionCandidates, buildGroupedEntries,
 } from './lib/areas.js';
+import { PLACEHOLDER_POKEMON, localSpriteCandidates } from './lib/sprites.js';
+import { ITEM_ICON_BASE, ITEM_PLACEHOLDER, ITEM_LIST, ITEM_INDEX } from './lib/items.js';
+import { calcCatchChance, STATUS_MULTIPLIERS, BALL_OPTIONS } from './lib/catch.js';
+import { DEX_LIST, DEX_BY_NAME, getMon, getMonByDex } from './lib/dexData.js';
+import { useNatures } from './lib/natures.js';
+import {
+  getBaseStatsFrom, getDisplayStatsFrom, computeFinalStats, mkInitialBuild, isDirty, coerceBuild, underlineFrom,
+} from './lib/stats.js';
+import { groupMoves } from './lib/moves.js';
+import Sprite from './components/pokemon/Sprite.jsx';
+import TypePill from './components/pokemon/TypePill.jsx';
+import AbilityPill, { useAbilityDesc } from './components/pokemon/AbilityPill.jsx';
+import StatsRow from './components/pokemon/StatsRow.jsx';
+import NatureSelect from './components/pokemon/NatureSelect.jsx';
+import MethodPill from './components/pokemon/MethodPill.jsx';
+import RarityPill from './components/pokemon/RarityPill.jsx';
+import DelayedTooltip from './components/pokemon/DelayedTooltip.jsx';
+import PokeballIcon from './components/pokemon/PokeballIcon.jsx';
 
 const TM_URL        = `${import.meta.env.BASE_URL}data/tm_locations.json`;
 const APP_TITLE = "3's PokeMMO Tool";
 
 const DEBUG_LIVE = true; // set false to silence console logs
 
-/** Optional overrides in .env / .env.production:
- *  VITE_SPRITES_BASE=/sprites/pokeapi/
- *  VITE_SPRITES_EXT=.png
- *  VITE_SHOW_CONFIDENCE=1  // set to 0 to hide confidence
- */
-const SPRITES_BASE = (import.meta.env.VITE_SPRITES_BASE || `${import.meta.env.BASE_URL}sprites/`).replace(/\/+$/, '/');
-const SPRITES_EXT  = import.meta.env.VITE_SPRITES_EXT || '.png';
-const ITEM_ICON_BASE = 'https://raw.githubusercontent.com/PokeMMO-Tools/pokemmo-data/main/assets/itemicons/';
-const ITEM_PLACEHOLDER = `${import.meta.env.BASE_URL}no-item.svg`;
-const PLACEHOLDER_POKEMON = `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M50 10c-5.5 0-10 4.5-10 10v5h-5c-5.5 0-10 4.5-10 10v30c0 5.5 4.5 10 10 10h5v5c0 5.5 4.5 10 10 10s10-4.5 10-10v-5h5c5.5 0 10-4.5 10-10V35c0-5.5-4.5-10-10-10h-5v-5c0-5.5-4.5-10-10-10z" fill="none" stroke="currentColor" stroke-width="2"/><text x="50" y="55" font-size="40" text-anchor="middle" fill="currentColor">?</text></svg>`)}`;
-
 // Precompute horde sizes by region and area for quick lookup
 const HORDE_SIZE_MAP = buildHordeSizeMap(hordeRegions);
 
 // Alpha species membership set by Dex ID (defined after DEX indices)
 
+// Optional override in .env: VITE_SHOW_CONFIDENCE=1 (set to 0 to hide confidence)
 const SHOW_CONFIDENCE = (import.meta?.env?.VITE_SHOW_CONFIDENCE ?? '1') === '1';
-function isOcrEnabled() {
-  try { return JSON.parse(localStorage.getItem('ocrEnabled') ?? 'true'); }
-  catch { return true; }
-}
 function formatConfidence(c){
   if (c == null || isNaN(c)) return null;
   const num = Number(c);
@@ -74,9 +72,6 @@ function formatConfidence(c){
   // Bound 0..100
   return Math.max(0, Math.min(100, pct));
 }
-
-const TRANSPARENT_PNG =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=';
 
   const ENCOUNTER_TYPES = (() => {
     const set = new Set();
@@ -91,12 +86,6 @@ const TRANSPARENT_PNG =
 
 /* ---------- small style helpers ---------- */
 const styles = {
-  segWrap: { display:'inline-flex', border:'1px solid var(--divider)', background:'var(--surface)', borderRadius:999, padding:4, gap:4 },
-  segBtn(active){ return {
-    appearance:'none', border:0, padding:'8px 14px', borderRadius:999, fontWeight:700, cursor:'pointer',
-    transition:'all .15s ease', background: active?'var(--card)':'transparent',
-    color: active?'var(--text)':'var(--muted)', boxShadow: active?'inset 0 0 0 1px var(--divider), 0 4px 18px rgba(0,0,0,.35)':'none'
-  };},
   card: { padding:16, borderRadius:12, border:'1px solid var(--divider)', background:'var(--surface)' },
   areaCard: { padding:12, borderRadius:12, border:'1px solid var(--divider)', background:'var(--surface)' },
   gridCols: { display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))', gap:10 },
@@ -143,325 +132,6 @@ const styles = {
 /* ---------- utils ---------- */
 const keyName = (s = "") => s.trim().toLowerCase().replace(/\s+/g, " ");
 
-function calcCatchChance(rate, hpRatio = 1, statusMult = 1, ballMult = 1) {
-  if (!rate || rate <= 0) return 0;
-  const a = Math.floor((3 - 2 * hpRatio) * rate * ballMult / 3);
-  const aStatus = Math.floor(a * statusMult);
-  const capped = Math.max(1, Math.min(255, aStatus));
-  if (capped >= 255) return 1;
-  const b = 1048560 / Math.sqrt(Math.sqrt(16711680 / capped));
-  return Math.pow(b / 65535, 4);
-}
-
-const STATUS_EFFECT_BUTTONS = [
-  { key: 'slp', label: 'SLP' },
-  { key: 'frz', label: 'FRZ' },
-  { key: 'par', label: 'PAR' },
-  { key: 'brn', label: 'BRN' },
-  { key: 'psn', label: 'PSN' },
-];
-
-const STATUS_MULTIPLIERS = {
-  slp: 2,
-  frz: 2,
-  par: 1.5,
-  brn: 1.5,
-  psn: 1.5,
-};
-
-const createBallIcon = (svg) => `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-
-const BALL_OPTIONS = [
-  {
-    key: 'pokeball',
-    label: 'Poké Ball',
-    multiplier: 1,
-    icon: createBallIcon(`
-      <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'>
-        <circle cx='16' cy='16' r='15' fill='#ffffff'/>
-        <path d='M16 1a15 15 0 0 1 15 15H1A15 15 0 0 1 16 1z' fill='#e33b3b'/>
-        <path d='M1 16h30' stroke='#1f1f1f' stroke-width='4' stroke-linecap='round'/>
-        <circle cx='16' cy='16' r='5' fill='#ffffff' stroke='#1f1f1f' stroke-width='2'/>
-        <circle cx='16' cy='16' r='2.5' fill='#d9d9d9'/>
-      </svg>
-    `)
-  },
-  {
-    key: 'great-ball',
-    label: 'Great Ball',
-    multiplier: 1.5,
-    icon: createBallIcon(`
-      <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'>
-        <circle cx='16' cy='16' r='15' fill='#ffffff'/>
-        <path d='M16 1a15 15 0 0 1 15 15H1A15 15 0 0 1 16 1z' fill='#2f6edb'/>
-        <path d='M6 10c2.4-3.5 5.6-5.3 10-5.3S23.6 6.5 26 10l-5 4H11z' fill='#d03636'/>
-        <path d='M1 16h30' stroke='#1f1f1f' stroke-width='4' stroke-linecap='round'/>
-        <circle cx='16' cy='16' r='5' fill='#ffffff' stroke='#1f1f1f' stroke-width='2'/>
-        <circle cx='16' cy='16' r='2.5' fill='#d9d9d9'/>
-      </svg>
-    `)
-  },
-  {
-    key: 'ultra-ball',
-    label: 'Ultra Ball',
-    multiplier: 2,
-    icon: createBallIcon(`
-      <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'>
-        <circle cx='16' cy='16' r='15' fill='#ffffff'/>
-        <path d='M16 1a15 15 0 0 1 15 15H1A15 15 0 0 1 16 1z' fill='#1f1f1f'/>
-        <path d='M8 6c2.5-1.8 5.1-3 8-3s5.5 1.2 8 3l-2.5 6h-11z' fill='#ffca28'/>
-        <path d='M1 16h30' stroke='#1f1f1f' stroke-width='4' stroke-linecap='round'/>
-        <circle cx='16' cy='16' r='5' fill='#ffffff' stroke='#1f1f1f' stroke-width='2'/>
-        <circle cx='16' cy='16' r='2.5' fill='#d9d9d9'/>
-      </svg>
-    `)
-  },
-  {
-    key: 'quick-ball',
-    label: 'Quick Ball',
-    multiplier: 5,
-    icon: createBallIcon(`
-      <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'>
-        <circle cx='16' cy='16' r='15' fill='#ffffff'/>
-        <path d='M16 1a15 15 0 0 1 15 15H1A15 15 0 0 1 16 1z' fill='#1f64b6'/>
-        <path d='M6 9c2.3-3 5.6-4.6 10-4.6S23.7 6 26 9l-4 4 4 4c-2.3 3-5.6 4.6-10 4.6S8.3 20 6 17l4-4z' fill='#ffe14d'/>
-        <path d='M1 16h30' stroke='#1f1f1f' stroke-width='4' stroke-linecap='round'/>
-        <circle cx='16' cy='16' r='5' fill='#ffffff' stroke='#1f1f1f' stroke-width='2'/>
-        <circle cx='16' cy='16' r='2.5' fill='#d9d9d9'/>
-      </svg>
-    `)
-  },
-  {
-    key: 'dusk-ball',
-    label: 'Dusk Ball',
-    multiplier: 2.5,
-    icon: createBallIcon(`
-      <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'>
-        <circle cx='16' cy='16' r='15' fill='#ffffff'/>
-        <path d='M16 1a15 15 0 0 1 15 15H1A15 15 0 0 1 16 1z' fill='#0e4b3b'/>
-        <path d='M6 9c2.4-3.5 5.6-5.3 10-5.3S23.6 5.5 26 9l-3 6H9z' fill='#1f7a5c'/>
-        <path d='M1 16h30' stroke='#12332b' stroke-width='4' stroke-linecap='round'/>
-        <circle cx='16' cy='16' r='5' fill='#ffffff' stroke='#12332b' stroke-width='2'/>
-        <circle cx='16' cy='16' r='2.5' fill='#d9d9d9'/>
-      </svg>
-    `)
-  },
-  {
-    key: 'repeat-ball',
-    label: 'Repeat Ball',
-    multiplier: 2.5,
-    icon: createBallIcon(`
-      <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'>
-        <circle cx='16' cy='16' r='15' fill='#ffffff'/>
-        <path d='M16 1a15 15 0 0 1 15 15H1A15 15 0 0 1 16 1z' fill='#f48c2a'/>
-        <path d='M6 9c2.5-3.2 5.7-4.8 10-4.8S23.5 5.8 26 9l-5 4 5 4c-2.5 3.2-5.7 4.8-10 4.8S8.5 20.2 6 17l5-4z' fill='#1f1f1f' opacity='0.6'/>
-        <path d='M1 16h30' stroke='#1f1f1f' stroke-width='4' stroke-linecap='round'/>
-        <circle cx='16' cy='16' r='5' fill='#ffffff' stroke='#1f1f1f' stroke-width='2'/>
-        <circle cx='16' cy='16' r='2.5' fill='#d9d9d9'/>
-      </svg>
-    `)
-  },
-  {
-    key: 'safari-ball',
-    label: 'Safari Ball',
-    multiplier: 1.5,
-    icon: createBallIcon(`
-      <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'>
-        <circle cx='16' cy='16' r='15' fill='#ffffff'/>
-        <path d='M16 1a15 15 0 0 1 15 15H1A15 15 0 0 1 16 1z' fill='#1d4d3b'/>
-        <path d='M6 9c2.4-3.5 5.6-5.3 10-5.3S23.6 5.5 26 9l-3 6H9z' fill='#9ec85b'/>
-        <path d='M1 16h30' stroke='#1c332a' stroke-width='4' stroke-linecap='round'/>
-        <circle cx='16' cy='16' r='5' fill='#ffffff' stroke='#1c332a' stroke-width='2'/>
-        <circle cx='16' cy='16' r='2.5' fill='#d9d9d9'/>
-      </svg>
-    `)
-  }
-];
-
-function BallSelect({ value, onChange }) {
-  const [open, setOpen] = React.useState(false);
-  const [menuMaxHeight, setMenuMaxHeight] = React.useState(null);
-  const ref = React.useRef(null);
-  const selected = BALL_OPTIONS.find(opt => opt.key === value) || BALL_OPTIONS[0];
-
-  const updateMenuMaxHeight = React.useCallback(() => {
-    if (!ref.current) return;
-    const wrap = ref.current;
-    const container = wrap.closest('.pokemon-profile-card');
-    const button = wrap.querySelector('.profile-ball-select-button');
-    const menu = wrap.querySelector('.profile-ball-select-menu');
-    if (!container || !button || !menu) {
-      setMenuMaxHeight(null);
-      return;
-    }
-    const containerRect = container.getBoundingClientRect();
-    const buttonRect = button.getBoundingClientRect();
-    // Account for the 6px gap defined in CSS plus a little breathing room.
-    const gap = 10;
-    const available = containerRect.bottom - buttonRect.bottom - gap;
-    setMenuMaxHeight(Number.isFinite(available) && available > 0 ? available : null);
-  }, []);
-
-  React.useEffect(() => {
-    function handleClick(e) {
-      if (!ref.current || ref.current.contains(e.target)) return;
-      setOpen(false);
-    }
-    function handleKey(e) {
-      if (e.key === 'Escape') setOpen(false);
-    }
-    document.addEventListener('mousedown', handleClick);
-    document.addEventListener('keydown', handleKey);
-    return () => {
-      document.removeEventListener('mousedown', handleClick);
-      document.removeEventListener('keydown', handleKey);
-    };
-  }, []);
-
-  React.useLayoutEffect(() => {
-    if (!open) return;
-    updateMenuMaxHeight();
-    const handleResize = () => updateMenuMaxHeight();
-    window.addEventListener('resize', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
-  }, [open, updateMenuMaxHeight]);
-
-  React.useEffect(() => {
-    if (!open) {
-      setMenuMaxHeight(null);
-    }
-  }, [open]);
-
-  return (
-    <div className={`profile-ball-select${open ? ' is-open' : ''}`} ref={ref}>
-      <button
-        type="button"
-        className="profile-ball-select-button"
-        onClick={() => setOpen(v => !v)}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        title={`Selected ball: ${selected.label}`}
-      >
-        <img
-          className="profile-ball-icon"
-          src={selected.icon}
-          alt=""
-          aria-hidden="true"
-        />
-        <span className="profile-ball-select-label">Ball</span>
-      </button>
-      {open && (
-        <div
-          className="profile-ball-select-menu"
-          role="listbox"
-          style={menuMaxHeight ? { maxHeight: menuMaxHeight } : undefined}
-        >
-          {BALL_OPTIONS.map(opt => (
-            <button
-              type="button"
-              key={opt.key}
-              className={`profile-ball-select-option${opt.key === selected.key ? ' is-selected' : ''}`}
-              onClick={() => {
-                onChange(opt.key);
-                setOpen(false);
-              }}
-              role="option"
-              aria-selected={opt.key === selected.key}
-            >
-              <img
-                className="profile-ball-icon"
-                src={opt.icon}
-                alt=""
-                aria-hidden="true"
-              />
-              <span>{opt.label}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ---------- pokedex adapter ---------- */
-// Build lookups to help resolve form data and skip standalone form entries
-const RAW_DEX_BY_ID = new Map(dexRaw.map(m => [m.id, m]));
-const FORM_IDS = new Set();
-for (const mon of dexRaw) {
-  if (!Array.isArray(mon.forms)) continue;
-  for (const f of mon.forms) {
-    if (typeof f.id === 'number' && f.id !== mon.id) {
-      FORM_IDS.add(f.id);
-    }
-  }
-}
-
-function toLegacyShape(m){
-  const types = Array.isArray(m.types) ? [...new Set(m.types.map(normalizeType))] : [];
-  return {
-    id: m.id,
-    name: m.name,
-    slug: m.slug || normalizeKey(m.name),
-    types,
-    expType: m.exp_type,
-    obtainable: m.obtainable,
-    genderRatio: m.gender_ratio,
-    height: m.height,
-    weight: m.weight,
-    eggGroups: m.egg_groups || [],
-    abilities: m.abilities || [],
-    forms: [],
-    evolutions: m.evolutions || [],
-    moves: m.moves || [],
-    stats: m.stats || {},
-    yields: m.yields || {},
-    heldItems: m.held_items || [],
-    locations: m.locations || [],
-    sprite: m.sprite ?? null,
-    sprites: m.sprites ?? null,
-    image: m.image ?? null,
-    icon: m.icon ?? null
-  };
-}
-const DEX_LIST = dexRaw
-  .filter(m => !FORM_IDS.has(m.id))
-  .map(m => {
-    const base = toLegacyShape(m);
-    if (Array.isArray(m.forms)) {
-      base.forms = m.forms
-        // Skip the base form (form_id 0 or identical name) and egg placeholders
-        .filter(f => f.form_id !== 0 && f.name !== m.name && f.name?.toLowerCase() !== 'egg')
-        .map(f => {
-          const formBase = {
-            ...(f.id != null ? RAW_DEX_BY_ID.get(f.id) : {}),
-            ...f,
-          };
-          const raw = formBase.name || '';
-          const bracket = raw.match(/\[(.+)\]/);
-          let label = bracket ? bracket[1] : raw;
-          label = label.replace(new RegExp(`\\b${m.name}\\b`, 'i'), '').trim();
-          if (!label) return null;
-          const name = `${m.name} (${label})`;
-          const shaped = toLegacyShape({ ...formBase, name, forms: [] });
-          shaped.id = null;
-          return shaped;
-        })
-        .filter(Boolean);
-    }
-    return base;
-  });
-const DEX_BY_NAME = (() => {
-  const map = new Map();
-  for (const m of DEX_LIST) {
-    map.set(normalizeKey(m.name), m);
-    for (const f of m.forms || []) map.set(normalizeKey(f.name), f);
-  }
-  return map;
-})();
-const getMon = (s) => DEX_BY_NAME.get(normalizeKey(s)) || null;
-
 // Alpha species membership set by Dex ID (use DEX index resolution for robustness)
 const ALPHA_ID_SET = (() => {
   const ids = new Set();
@@ -496,491 +166,9 @@ const buildNameRegex = (transform) => {
 };
 const POKE_NAME_REGEX = buildNameRegex((k) => k);
 const POKE_NAME_COMPACT_REGEX = buildNameRegex((k) => k.replace(/[^a-z0-9]+/g, ""));
-const DEX_BY_ID = (() => {
-  const map = new Map();
-  for (const m of DEX_LIST) map.set(m.id, m);
-  return map;
-})();
-const getMonByDex = (id) => DEX_BY_ID.get(Number(id)) || null;
-
-const ITEM_LIST = (() => {
-  const src = Array.isArray(itemsRaw) ? itemsRaw : [];
-  const seen = new Set();
-  const list = [];
-  for (const item of src) {
-    if (item?.id === 0) continue; // skip placeholder entry
-    if (!item?.name || item.name.includes('?')) continue; // skip unknown items
-    const key = normalizeKey(item.name);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    list.push(item);
-  }
-  return list;
-})();
-
-const ITEM_INDEX = (() => {
-  const byId = new Map();
-  const byName = new Map();
-  for (const item of ITEM_LIST) {
-    if (item.id != null) byId.set(item.id, item);
-    byName.set(normalizeKey(item.name), item);
-  }
-  return { byId, byName };
-})();
-
-const MOVES_INDEX = (() => {
-  const byId = new Map();
-  for (const move of movesData) {
-    if (move.id != null) byId.set(move.id, move);
-  }
-  return { byId };
-})();
-
-const EVO_PARENTS = (() => {
-  const map = new Map();
-  for (const mon of DEX_LIST) {
-    for (const evo of mon.evolutions || []) {
-      if (!map.has(evo.id)) map.set(evo.id, []);
-      map.get(evo.id).push(mon.id);
-    }
-  }
-  return map;
-})();
 
 function normalizeEggGroup(g=''){
   return String(g).toLowerCase().replace('warer','water').replace('hmanoid','humanoid').trim();
-}
-
-const MOVE_METHODS = [
-  { key:'start', label:'Start' },
-  { key:'lv', label:'Level' },
-  { key:'tutor', label:'Tutor' },
-  { key:'tmhm', label:'TM/HM' },
-  { key:'egg', label:'Egg' },
-  { key:'special', label:'Special' }
-];
-
-function groupMoves(list = []){
-  const out = { start: [], lv: [], tutor: [], tmhm: [], egg: [], special: [] };
-  for (const mv of list){
-    switch(mv.type){
-      case 'level':
-        if (mv.level <= 1) out.start.push(mv.name);
-        else out.lv.push({ level: mv.level, move: mv.name });
-        break;
-      case 'move_tutor':
-        out.tutor.push(mv.name);
-        break;
-      case 'move_learner_tools':
-        out.tmhm.push(mv.name);
-        break;
-      case 'egg_moves':
-        out.egg.push(mv.name);
-        break;
-      case 'special_moves':
-      case 'special_egg':
-        out.special.push(mv.name);
-        break;
-      default:
-        break;
-    }
-  }
-  out.lv.sort((a,b) => a.level - b.level);
-  return out;
-}
-
-/* ---------- sprite source helpers & component ---------- */
-function localSpriteCandidates(mon){
-  const id = String(mon?.id||'').trim();
-  const key = normalizeKey(mon?.name||'');
-  const bases = [SPRITES_BASE, `${import.meta.env.BASE_URL}sprites/`, `${import.meta.env.BASE_URL}sprites/pokeapi/`, `${import.meta.env.BASE_URL}sprites/national/`];
-  const exts = [SPRITES_EXT, '.png', '.gif', '.webp'];
-  const out = [];
-  for (const b of bases){ for (const e of exts){ if (id) out.push(`${b}${id}${e}`); if (key) out.push(`${b}${key}${e}`); } }
-  return [...new Set(out)];
-}
-  function spriteSources(mon, opts = {}){
-  const shiny = !!opts.shiny;
-  if (!mon) return [];
-
-  // Use placeholder for Pokemon with ID >= 650 (Event Pokemon with incorrect sprite data)
-  if (mon?.id != null && mon.id >= 650) {
-    return [PLACEHOLDER_POKEMON];
-  }
-
-  const arr = [];
-
-  // Prefer higher-resolution PokeAPI sprites first when we have a canonical dex number
-  // Our dex id lives on `mon.id` (not `mon.dex`).
-  if (mon?.id != null) {
-    if (shiny) {
-      // Shiny front_default (static path)
-      arr.push(`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${mon.id}.png`);
-    }
-    // Non-shiny default + official artwork
-    arr.push(`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${mon.id}.png`);
-    arr.push(`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${mon.id}.png`);
-    }
-
-  // Fallbacks to any provided or local sprites
-  if (!shiny) {
-    if (mon.sprite) arr.push(mon.sprite);
-    if (mon.sprites?.front_default) arr.push(mon.sprites.front_default);
-  } else {
-    if (mon.sprites?.front_shiny) arr.push(mon.sprites.front_shiny);
-    // Some species expose shiny official artwork
-    const shinyArt = mon.sprites?.other?.["official-artwork"]?.front_shiny;
-    if (shinyArt) arr.push(shinyArt);
-  }
-  if (mon.image) arr.push(mon.image);
-  if (mon.icon) arr.push(mon.icon);
-  arr.push(...localSpriteCandidates(mon));
-
-  return [...new Set(arr)].filter(Boolean);
-}
-  // Build best-guess PokeAPI slugs for alternate forms
-  function buildPokeApiSlugCandidates(mon){
-    const out = [];
-    const norm = (s='') => String(s).toLowerCase().normalize('NFKD')
-      .replace(/[^\w\s-]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-').trim();
-    const add = (s) => { if (s && !out.includes(s)) out.push(s); };
-
-    if (!mon) return out;
-    add(mon.slug);
-    add(norm(mon.name));
-
-    const m = String(mon.name||'').match(/^(.*?)\s*\((.+)\)\s*$/);
-    if (m) {
-      const base = norm(m[1]);
-      const rawLabel = norm(m[2]);
-      // direct join
-      add(`${base}-${rawLabel}`);
-      // strip common suffix words like "form/forme/style/mode/trim"
-      let label = rawLabel
-        .replace(/\bforms?\b/g,'')
-        .replace(/\bformes?\b/g,'')
-        .replace(/\bmode\b/g,'')
-        .replace(/\bstyle\b/g,'')
-        .replace(/\bpattern\b/g,'')
-        .replace(/\bcoat\b/g,'')
-        .replace(/\bcloak\b/g,'')
-        .replace(/\btrim\b/g,'')
-        .replace(/\bsize\b/g,'')
-        .replace(/\bstandard-?mode\b/g,'standard')
-        .replace(/--+/g,'-').replace(/^-|-$/g,'');
-      if (label) add(`${base}-${label}`);
-      // regional adjective normalization
-      let label2 = label
-        .replace(/\balolan\b/,'alola')
-        .replace(/\bgalarian\b/,'galar')
-        .replace(/\bhisuian\b/,'hisui')
-        .replace(/\bpaldean\b/,'paldea')
-        .replace(/\beast-sea\b/,'east')
-        .replace(/\bwest-sea\b/,'west')
-        .replace(/--+/g,'-').replace(/^-|-$/g,'');
-      if (label2 && label2 !== label) add(`${base}-${label2}`);
-      // try also slug-without -form/forme suffix
-      if (mon.slug) {
-        const s1 = mon.slug.replace(/-forms?\b/,'').replace(/-formes?\b/,'');
-        add(s1);
-      }
-    }
-    return out.filter(Boolean);
-  }
-
-  async function resolvePokeapiSprite(mon){
-    const candidates = buildPokeApiSlugCandidates(mon);
-    // Try pokemon endpoint first
-    for (const slug of candidates){
-      try {
-        const r = await fetch(`https://pokeapi.co/api/v2/pokemon/${slug}`);
-        if (!r.ok) continue;
-        const d = await r.json();
-        const s = d?.sprites?.front_default || d?.sprites?.other?.["official-artwork"]?.front_default;
-        if (s) return s;
-      } catch {}
-    }
-    // Try pokemon-form endpoint as a fallback for forms that only exist there
-    for (const slug of candidates){
-      try {
-        const r = await fetch(`https://pokeapi.co/api/v2/pokemon-form/${slug}`);
-        if (!r.ok) continue;
-        const d = await r.json();
-        const s = d?.sprites?.front_default;
-        if (s) return s;
-      } catch {}
-    }
-    return null;
-  }
-  async function resolvePokeapiSpriteShiny(mon){
-    const candidates = buildPokeApiSlugCandidates(mon);
-    // Try pokemon endpoint first
-    for (const slug of candidates){
-      try {
-        const r = await fetch(`https://pokeapi.co/api/v2/pokemon/${slug}`);
-        if (!r.ok) continue;
-        const d = await r.json();
-        const s = d?.sprites?.front_shiny || d?.sprites?.other?.["official-artwork"]?.front_shiny;
-        if (s) return s;
-      } catch {}
-    }
-    // Try pokemon-form endpoint
-    for (const slug of candidates){
-      try {
-        const r = await fetch(`https://pokeapi.co/api/v2/pokemon-form/${slug}`);
-        if (!r.ok) continue;
-        const d = await r.json();
-        const s = d?.sprites?.front_shiny;
-        if (s) return s;
-      } catch {}
-    }
-    return null;
-  }
-  const SPRITE_ANIMATION_CACHE = new Map();
-
-  function animationSources(mon, opts = {}){
-    const shiny = !!opts.shiny;
-    if (!mon) return [];
-    const showdownBase = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/showdown/';
-    const bwBase = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-v/black-white/animated/';
-    const suffix = shiny ? 'shiny/' : '';
-    const arr = [];
-
-    if (mon?.id != null) {
-      arr.push(`${showdownBase}${suffix}${mon.id}.gif`);
-      arr.push(`${bwBase}${suffix}${mon.id}.gif`);
-    }
-
-    const showdown = mon?.sprites?.other?.showdown;
-    if (showdown) {
-      const key = shiny ? 'front_shiny' : 'front_default';
-      if (showdown[key]) arr.push(showdown[key]);
-    }
-
-    const animated = mon?.sprites?.versions?.['generation-v']?.['black-white']?.animated;
-    if (animated) {
-      const key = shiny ? 'front_shiny' : 'front_default';
-      if (animated[key]) arr.push(animated[key]);
-    }
-
-    const slugCandidates = buildPokeApiSlugCandidates(mon);
-    for (const slug of slugCandidates) {
-      arr.push(`${showdownBase}${suffix}${slug}.gif`);
-    }
-
-    return [...new Set(arr)].filter(Boolean);
-  }
-
-  async function resolvePokeapiAnimation(mon, opts = {}){
-    if (!mon) return null;
-    const shiny = !!opts.shiny;
-    const candidates = buildPokeApiSlugCandidates(mon);
-    for (const slug of candidates){
-      try {
-        const r = await fetch(`https://pokeapi.co/api/v2/pokemon/${slug}`);
-        if (!r.ok) continue;
-        const d = await r.json();
-        const showdown = d?.sprites?.other?.showdown?.[shiny ? 'front_shiny' : 'front_default'];
-        if (showdown) return showdown;
-        const animated = d?.sprites?.versions?.['generation-v']?.['black-white']?.animated?.[shiny ? 'front_shiny' : 'front_default'];
-        if (animated) return animated;
-      } catch {}
-    }
-    return null;
-  }
-
-  function preloadImage(url){
-    if (!url) return Promise.reject(new Error('No image URL'));
-    if (typeof Image !== 'undefined'){
-      return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(url);
-        img.onerror = () => reject(new Error('Failed to load image'));
-        img.src = url;
-      });
-    }
-    if (typeof fetch === 'function'){
-      return fetch(url, { method:'GET' }).then(resp => {
-        if (!resp.ok) throw new Error('Failed to load image');
-        return url;
-      });
-    }
-    return Promise.resolve(url);
-  }
-
-  function Sprite({ mon, size=42, alt='', forceShiny=false, playOnHover=false }) {
-    const [shinyGlobal, setShinyGlobal] = useState(() => {
-      try { return JSON.parse(localStorage.getItem('shinySprites') ?? 'false'); } catch { return false; }
-    });
-    useEffect(() => {
-      const onChange = (e) => setShinyGlobal(!!e?.detail?.enabled);
-      window.addEventListener('shiny-global-changed', onChange);
-      return () => window.removeEventListener('shiny-global-changed', onChange);
-    }, []);
-    const useShiny = !!(shinyGlobal || forceShiny);
-    const srcs = React.useMemo(()=> spriteSources(mon, { shiny: useShiny }), [mon, useShiny]);
-    const [idx, setIdx] = useState(0);
-    const [pokeSrc, setPokeSrc] = useState(null);
-    const [triedPokeApi, setTriedPokeApi] = useState(false);
-    useEffect(()=>{
-      setIdx(0); setPokeSrc(null); setTriedPokeApi(false);
-      const noDex = mon && (mon.dex == null && mon.id == null);
-      if (noDex) {
-        setTriedPokeApi(true);
-        const resolver = useShiny ? resolvePokeapiSpriteShiny : resolvePokeapiSprite;
-        resolver(mon).then((s) => { if (s) setPokeSrc(s); }).catch(()=>{});
-      }
-    }, [mon, useShiny]);
-    const staticSrc = pokeSrc || srcs[idx] || TRANSPARENT_PNG;
-
-    const enableAnimation = !!playOnHover;
-    const [wantsAnimation, setWantsAnimation] = useState(false);
-    const [animationSrc, setAnimationSrc] = useState(null);
-    const animationApiTriedRef = useRef(false);
-    const monSignature = React.useMemo(() => {
-      if (!mon) return 'null';
-      const parts = [];
-      if (mon.id != null) parts.push(`id:${mon.id}`);
-      if (mon.slug) parts.push(`slug:${mon.slug}`);
-      if (mon.name) parts.push(`name:${mon.name}`);
-      return parts.join('|') || 'anon';
-    }, [mon]);
-    useEffect(() => {
-      if (!enableAnimation) return;
-      animationApiTriedRef.current = false;
-      setAnimationSrc(prev => (prev !== null ? null : prev));
-    }, [enableAnimation, monSignature, useShiny]);
-    useEffect(() => {
-      if (!enableAnimation && wantsAnimation) {
-        setWantsAnimation(false);
-      }
-    }, [enableAnimation, wantsAnimation]);
-    const animationSrcs = React.useMemo(() => (
-      enableAnimation ? animationSources(mon, { shiny: useShiny }) : []
-    ), [enableAnimation, mon, useShiny]);
-    const animationCacheKey = React.useMemo(() => {
-      if (!enableAnimation || !mon) return '';
-      const parts = [useShiny ? 'shiny' : 'normal'];
-      if (mon.id != null) parts.push(`id:${mon.id}`);
-      if (mon.slug) parts.push(`slug:${mon.slug}`);
-      if (!mon.slug && mon.formSlug) parts.push(`slug:${mon.formSlug}`);
-      if (mon.name) parts.push(`name:${mon.name}`);
-      return parts.join('|');
-    }, [enableAnimation, mon, useShiny]);
-    useEffect(() => {
-      if (!enableAnimation) return;
-      if (!wantsAnimation) return;
-      if (!mon) return;
-      if (animationSrc) return;
-
-      let cancelled = false;
-      const cacheKey = animationCacheKey;
-
-      if (cacheKey && SPRITE_ANIMATION_CACHE.has(cacheKey)) {
-        const cached = SPRITE_ANIMATION_CACHE.get(cacheKey);
-        if (cached) setAnimationSrc(cached);
-        return;
-      }
-
-      const load = async () => {
-        for (const candidate of animationSrcs) {
-          if (!candidate) continue;
-          try {
-            await preloadImage(candidate);
-            if (cancelled) return;
-            if (cacheKey) SPRITE_ANIMATION_CACHE.set(cacheKey, candidate);
-            setAnimationSrc(candidate);
-            return;
-          } catch {}
-        }
-
-        if (!animationApiTriedRef.current) {
-          animationApiTriedRef.current = true;
-          try {
-            const resolved = await resolvePokeapiAnimation(mon, { shiny: useShiny });
-            if (cancelled) return;
-            if (resolved) {
-              try {
-                await preloadImage(resolved);
-                if (cancelled) return;
-                if (cacheKey) SPRITE_ANIMATION_CACHE.set(cacheKey, resolved);
-                setAnimationSrc(resolved);
-                return;
-              } catch {}
-            }
-          } catch {}
-        }
-
-        if (!cancelled && cacheKey && !SPRITE_ANIMATION_CACHE.has(cacheKey)) {
-          SPRITE_ANIMATION_CACHE.set(cacheKey, null);
-        }
-      };
-
-      load();
-
-      return () => { cancelled = true; };
-    }, [enableAnimation, wantsAnimation, mon, useShiny, animationSrc, animationSrcs, animationCacheKey]);
-    const displayedSrc = enableAnimation && wantsAnimation && animationSrc ? animationSrc : staticSrc;
-
-    const handleError = () => {
-      if (enableAnimation && wantsAnimation && animationSrc) {
-        if (animationCacheKey) SPRITE_ANIMATION_CACHE.set(animationCacheKey, null);
-        animationApiTriedRef.current = false;
-        setAnimationSrc(null);
-        return;
-      }
-      if (idx < srcs.length - 1) {
-        setIdx(idx + 1);
-      } else if (!triedPokeApi && mon) {
-        setTriedPokeApi(true);
-        const resolver = useShiny ? resolvePokeapiSpriteShiny : resolvePokeapiSprite;
-        resolver(mon).then((s) => { if (s) setPokeSrc(s); }).catch(()=>{});
-      }
-    };
-
-    return (
-      <img
-        src={displayedSrc}
-        alt={alt || mon?.name || ''}
-        style={{
-          width: size,
-          height: size,
-          maxWidth: '100%',
-          maxHeight: '100%',
-          objectFit: 'contain',
-          imageRendering: 'pixelated'
-        }}
-        onError={handleError}
-        onMouseEnter={enableAnimation ? () => setWantsAnimation(true) : undefined}
-        onMouseLeave={enableAnimation ? () => setWantsAnimation(false) : undefined}
-      />
-    );
-  }
-/* ---------- Type colors (Gen 1–5) ---------- */
-const TYPE_COLORS = {
-  normal:'#A8A77A', fire:'#EE8130', water:'#6390F0', electric:'#F7D02C',
-  grass:'#7AC74C', ice:'#96D9D6', fighting:'#C22E28', poison:'#A33EA1',
-  ground:'#E2BF65', flying:'#A98FF3', psychic:'#F95587', bug:'#A6B91A',
-  rock:'#B6A136', ghost:'#735797', dragon:'#6F35FC', dark:'#705746',
-  steel:'#B7B7CE'
-};
-function TypePill({ t, compact=false, large=false, onClick }){
-  const key = normalizeType(t);
-  if (!key) return null;
-  const bg = TYPE_COLORS[key] || '#555';
-  const pad = compact ? '2px 8px' : large ? '6px 12px' : '4px 10px';
-  const fontSize = compact ? 12 : large ? 15 : 13;
-  return (
-    <span
-      onClick={onClick}
-      title={onClick ? 'Filter by Type' : titleCase(key)}
-      style={{
-        display:'inline-block', padding:pad, fontSize, lineHeight:1,
-        borderRadius:999, fontWeight:800, color:'#111', background:bg, border:'1px solid #00000022', textShadow:'0 1px 0 #ffffff55',
-        cursor: onClick ? 'pointer' : 'default', userSelect: 'none'
-      }}
-    >{titleCase(key)}</span>
-  );
 }
 
 const EGG_GROUP_COLORS = {
@@ -1008,296 +196,6 @@ function EggGroupPill({ group, onClick }){
   );
 }
 
-const abilityCache = new Map();
-function useAbilityDesc(name){
-  const slug = normalizeKey(name);
-  const [desc, setDesc] = useState(abilityCache.get(slug) || '');
-  useEffect(() => {
-    if (!slug || abilityCache.has(slug)) return;
-    let alive = true;
-    (async () => {
-      try {
-        const res = await fetch(`https://pokeapi.co/api/v2/ability/${slug}`);
-        const json = await res.json();
-        const entry = (json.effect_entries || []).find(e => e.language?.name === 'en');
-        const d = entry?.short_effect || entry?.effect || '';
-        abilityCache.set(slug, d);
-        if (alive) setDesc(d);
-      } catch (e) {
-        if (alive) setDesc('');
-      }
-    })();
-    return () => { alive = false; };
-  }, [slug]);
-  return desc;
-}
-
-function AbilityPill({ label, name, compact = false }){
-  // The hook runs before the early return: hooks must run on every render, in the same order.
-  const desc = useAbilityDesc(name);
-  if (!name) return null;
-  const trimmedDesc = desc?.trim() || '';
-  const tooltipContent = trimmedDesc || titleCase(name);
-  // Unified ability text size; overflow handled with ellipsis
-  const fontPx = 13;
-  return (
-    <div style={{
-      display:'flex', alignItems:'center', gap:6,
-      padding: compact ? '2px 6px' : '4px 8px',
-      borderRadius:8,
-      background:'var(--surface)',
-      border:'1px solid var(--divider)',
-      minWidth: 0
-    }}>
-      <span className="label-muted" style={{ fontSize: compact ? 11 : 12 }}>{label}</span>
-      <DelayedTooltip content={tooltipContent} delay={400}>
-        <span
-          style={{
-            fontWeight:600,
-            color:'var(--accent)',
-            whiteSpace:'nowrap',
-            overflow:'hidden',
-            textOverflow:'ellipsis',
-            display:'inline-block',
-            minWidth: 0,
-            maxWidth: '100%',
-            fontSize: fontPx,
-            cursor: tooltipContent ? 'help' : 'default'
-          }}
-          aria-label={tooltipContent}
-        >{titleCase(name)}</span>
-      </DelayedTooltip>
-    </div>
-  );
-}
-
-// ---------- Nature data (PokeAPI) ----------
-const NATURE_CACHE_KEY = 'nature-list-v1';
-const STATIC_NATURES = [
-  { name: 'Hardy' },
-  { name: 'Lonely', inc: 'attack', dec: 'defense' },
-  { name: 'Brave', inc: 'attack', dec: 'speed' },
-  { name: 'Adamant', inc: 'attack', dec: 'special-attack' },
-  { name: 'Naughty', inc: 'attack', dec: 'special-defense' },
-  { name: 'Bold', inc: 'defense', dec: 'attack' },
-  { name: 'Docile' },
-  { name: 'Relaxed', inc: 'defense', dec: 'speed' },
-  { name: 'Impish', inc: 'defense', dec: 'special-attack' },
-  { name: 'Lax', inc: 'defense', dec: 'special-defense' },
-  { name: 'Timid', inc: 'speed', dec: 'attack' },
-  { name: 'Hasty', inc: 'speed', dec: 'defense' },
-  { name: 'Serious' },
-  { name: 'Jolly', inc: 'speed', dec: 'special-attack' },
-  { name: 'Naive', inc: 'speed', dec: 'special-defense' },
-  { name: 'Modest', inc: 'special-attack', dec: 'attack' },
-  { name: 'Mild', inc: 'special-attack', dec: 'defense' },
-  { name: 'Quiet', inc: 'special-attack', dec: 'speed' },
-  { name: 'Bashful' },
-  { name: 'Rash', inc: 'special-attack', dec: 'special-defense' },
-  { name: 'Calm', inc: 'special-defense', dec: 'attack' },
-  { name: 'Gentle', inc: 'special-defense', dec: 'defense' },
-  { name: 'Sassy', inc: 'special-defense', dec: 'speed' },
-  { name: 'Careful', inc: 'special-defense', dec: 'special-attack' },
-  { name: 'Quirky' }
-];
-const STAT_KEY_MAP = {
-  'attack': 'attack',
-  'defense': 'defense',
-  'special-attack': 'special_attack',
-  'special-defense': 'special_defense',
-  'speed': 'speed'
-};
-const STAT_ABBR = {
-  attack: 'Atk',
-  defense: 'Def',
-  special_attack: 'SpA',
-  special_defense: 'SpD',
-  speed: 'Spe'
-};
-
-function normalizeNatureRecord(n) {
-  const inc = n.inc ? STAT_KEY_MAP[n.inc] : null;
-  const dec = n.dec ? STAT_KEY_MAP[n.dec] : null;
-  const mods = { attack:1.0, defense:1.0, special_attack:1.0, special_defense:1.0, speed:1.0 };
-  if (inc && inc !== dec) mods[inc] = 1.1;
-  if (dec && inc !== dec) mods[dec] = 0.9;
-  return { name: n.name, inc: inc || null, dec: dec || null, mods };
-}
-
-function labelNature(n) {
-  if (!n) return '';
-  const name = titleCase(n.name || '');
-  if (!n.inc && !n.dec) return `${name} (+/-)`;
-  const plus = n.inc ? `+${STAT_ABBR[n.inc]}` : '';
-  const minus = n.dec ? `-${STAT_ABBR[n.dec]}` : '';
-  let body = plus && minus ? `${plus}, ${minus}` : (plus || minus);
-  return `${name} (${body})`;
-}
-
-function useNatures() {
-  const [list, setList] = useState(() => {
-    try {
-      const cached = sessionStorage.getItem(NATURE_CACHE_KEY);
-      if (cached) return JSON.parse(cached);
-    } catch {}
-    const statics = STATIC_NATURES
-      .map(n => normalizeNatureRecord({ name: n.name, inc: n.inc || null, dec: n.dec || null }))
-      .sort((a,b)=> a.name.localeCompare(b.name));
-    return statics;
-  });
-
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const r = await fetch('https://pokeapi.co/api/v2/nature?limit=1000');
-        if (!r.ok) return;
-        const d = await r.json();
-        const entries = Array.isArray(d.results) ? d.results : [];
-        const all = await Promise.all(entries.map(async e => {
-          try {
-            const rr = await fetch(e.url);
-            if (!rr.ok) return null;
-            const jj = await rr.json();
-            const inc = jj.increased_stat?.name || null;
-            const dec = jj.decreased_stat?.name || null;
-            return normalizeNatureRecord({ name: e.name, inc, dec });
-          } catch { return null; }
-        }));
-        const clean = all.filter(Boolean).sort((a,b)=> a.name.localeCompare(b.name));
-        if (clean.length && alive) {
-          setList(clean);
-          try { sessionStorage.setItem(NATURE_CACHE_KEY, JSON.stringify(clean)); } catch{}
-        }
-      } catch {}
-    })();
-    return () => { alive = false; };
-  }, []);
-
-  const byName = useMemo(() => {
-    const m = new Map();
-    for (const n of list) m.set(normalizeKey(n.name), n);
-    return m;
-  }, [list]);
-
-  return { list, byName };
-}
-
-// ---------- Stat computation ----------
-const STAT_KEYS = ['hp','attack','defense','special_attack','special_defense','speed'];
-function clamp(n, lo, hi){
-  const x = Number(n);
-  if (isNaN(x)) return lo;
-  return Math.max(lo, Math.min(hi, x));
-}
-function getBaseStatsFrom(mon = {}){
-  const s = mon?.stats || {};
-  return {
-    hp: Number(s.base_hp ?? s.hp ?? s.HP ?? 0) || 0,
-    attack: Number(s.base_attack ?? s.attack ?? s.att ?? 0) || 0,
-    defense: Number(s.base_defense ?? s.defense ?? s.def ?? 0) || 0,
-    special_attack: Number(s.base_special_attack ?? s.special_attack ?? s.s_att ?? s.sp_attack ?? 0) || 0,
-    special_defense: Number(s.base_special_defense ?? s.special_defense ?? s.s_def ?? s.sp_defense ?? 0) || 0,
-    speed: Number(s.base_speed ?? s.speed ?? s.spd ?? 0) || 0,
-  };
-}
-function getDisplayStatsFrom(mon = {}){
-  const s = mon?.stats || {};
-  return {
-    hp: Number(s.hp ?? s.HP ?? s.base_hp ?? 0) || 0,
-    attack: Number(s.attack ?? s.att ?? s.base_attack ?? 0) || 0,
-    defense: Number(s.defense ?? s.def ?? s.base_defense ?? 0) || 0,
-    special_attack: Number(s.special_attack ?? s.s_att ?? s.sp_attack ?? s.base_special_attack ?? 0) || 0,
-    special_defense: Number(s.special_defense ?? s.s_def ?? s.sp_defense ?? s.base_special_defense ?? 0) || 0,
-    speed: Number(s.speed ?? s.spd ?? s.base_speed ?? 0) || 0,
-  };
-}
-function computeFinalStats(base, ivs, evs, level, natureMods){
-  const L = clamp(level, 1, 100);
-  const IV = Object.fromEntries(STAT_KEYS.map(k => [k, clamp(ivs?.[k] ?? 0, 0, 31)]));
-  const EVraw = Object.fromEntries(STAT_KEYS.map(k => [k, clamp(evs?.[k] ?? 0, 0, 252)]));
-  let total = STAT_KEYS.reduce((sum,k)=> sum + (EVraw[k]||0), 0);
-  const EV = { ...EVraw };
-  if (total > 510) {
-    let excess = total - 510;
-    const order = [...STAT_KEYS].sort((a,b) => (EV[b]||0) - (EV[a]||0));
-    for (const k of order){
-      if (excess <= 0) break;
-      const take = Math.min(excess, EV[k]);
-      EV[k] -= take;
-      excess -= take;
-    }
-  }
-  const EVq = Object.fromEntries(STAT_KEYS.map(k => [k, Math.floor((EV[k]||0) / 4)]));
-  const Nat = natureMods || { attack:1, defense:1, special_attack:1, special_defense:1, speed:1 };
-
-  const out = {};
-  out.hp = Math.floor(((2*base.hp + IV.hp + EVq.hp) * L) / 100) + L + 10;
-  for (const k of ['attack','defense','special_attack','special_defense','speed']){
-    const raw = Math.floor(((2*base[k] + IV[k] + EVq[k]) * L) / 100) + 5;
-    const mod = Nat[k] ?? 1.0;
-    out[k] = Math.floor(raw * mod);
-  }
-  return out;
-}
-function sumStats(map){ return ['hp','attack','defense','special_attack','special_defense','speed'].reduce((s,k)=> s + ((map?.[k]||0) | 0), 0); }
-
-function mkInitialBuild(){
-  return {
-    level: '',
-    nature: '',
-    iv: { hp:'', attack:'', defense:'', special_attack:'', special_defense:'', speed:'' },
-    ev: { hp:'', attack:'', defense:'', special_attack:'', special_defense:'', speed:'' },
-  };
-}
-
-function isDirty(b){
-  if (!b) return false;
-  if (b.level !== '' && b.level != null) return true;
-  if (b.nature && normalizeKey(b.nature) !== '') return true;
-  for (const k of ['hp','attack','defense','special_attack','special_defense','speed']){ if (b.iv?.[k] !== '' && (b.iv?.[k] ?? 0) !== 0) return true; }
-  for (const k of ['hp','attack','defense','special_attack','special_defense','speed']){ if (b.ev?.[k] !== '' && (b.ev?.[k] ?? 0) !== 0) return true; }
-  return false;
-}
-
-function coerceBuild(b){
-  const rawL = b?.level;
-  const level = (rawL === '' || rawL == null)
-    ? 50
-    : clamp(parseInt(rawL, 10) || 1, 1, 100);
-  return {
-    level,
-    nature: b?.nature || '',
-    iv: { hp: b?.iv?.hp === '' ? 0 : (b?.iv?.hp ?? 0), attack: b?.iv?.attack === '' ? 0 : (b?.iv?.attack ?? 0), defense: b?.iv?.defense === '' ? 0 : (b?.iv?.defense ?? 0), special_attack: b?.iv?.special_attack === '' ? 0 : (b?.iv?.special_attack ?? 0), special_defense: b?.iv?.special_defense === '' ? 0 : (b?.iv?.special_defense ?? 0), speed: b?.iv?.speed === '' ? 0 : (b?.iv?.speed ?? 0) },
-    ev: { hp: b?.ev?.hp === '' ? 0 : (b?.ev?.hp ?? 0), attack: b?.ev?.attack === '' ? 0 : (b?.ev?.attack ?? 0), defense: b?.ev?.defense === '' ? 0 : (b?.ev?.defense ?? 0), special_attack: b?.ev?.special_attack === '' ? 0 : (b?.ev?.special_attack ?? 0), special_defense: b?.ev?.special_defense === '' ? 0 : (b?.ev?.special_defense ?? 0), speed: b?.ev?.speed === '' ? 0 : (b?.ev?.speed ?? 0) },
-  };
-}
-
-function underlineFrom(override, baseline){
-  const set = new Set();
-  if (!override || !baseline) return set;
-  for (const k of ['hp','attack','defense','special_attack','special_defense','speed']){ if ((override[k]||0) !== (baseline[k]||0)) set.add(k); }
-  if (sumStats(override) !== sumStats(baseline)) set.add('total');
-  return set;
-}
-
-function NatureSelect({ value, onChange, natureList }){
-  return (
-    <select
-      className="input"
-      value={value || ''}
-      onChange={(e)=> onChange?.(e.target.value)}
-      style={{ height: 20, padding: '0 32px 0 14px', minWidth: 140 }}
-      title="Nature"
-    >
-      <option value="">Nature</option>
-      {natureList.map((n) => (
-        <option key={n.name} value={n.name}>{labelNature(n)}</option>
-      ))}
-    </select>
-  );
-}
-
 function LabeledPillBox({ label, value, title }){
   if (value == null || value === '') return null;
   return (
@@ -1314,43 +212,6 @@ function LabeledPillBox({ label, value, title }){
       <span className="label-muted" style={{ fontSize:12 }}>{label}</span>
       <span style={{ fontWeight:700 }}>{value}</span>
     </div>
-  );
-}
-
-// Delayed tooltip wrapper for hover content (e.g., item descriptions)
-function DelayedTooltip({ content, delay = 1000, maxWidth = 360, children }){
-  const [visible, setVisible] = React.useState(false);
-  const timerRef = React.useRef(null);
-  const resolvedMaxWidth = typeof maxWidth === 'number' ? maxWidth : 360;
-  const resolvedMinWidth = Math.min(resolvedMaxWidth, 260);
-  const onEnter = () => {
-    clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setVisible(true), delay);
-  };
-  const onLeave = () => {
-    clearTimeout(timerRef.current);
-    setVisible(false);
-  };
-  return (
-    <span style={{ position:'relative', display:'inline-flex', alignItems:'center' }} onMouseEnter={onEnter} onMouseLeave={onLeave}>
-      {children}
-      {visible && content && (
-        <span
-          style={{
-            position:'absolute',
-            bottom:'calc(100% + 8px)', left:'50%', transform:'translateX(-50%)',
-            maxWidth: resolvedMaxWidth,
-            minWidth: resolvedMinWidth,
-            background:'var(--surface)', color:'var(--text)',
-            border:'1px solid var(--divider)', borderRadius:8,
-            padding:'8px 12px', fontSize:12, lineHeight:1.4, boxShadow:'0 6px 20px rgba(0,0,0,.35)',
-            zIndex:50, whiteSpace:'normal', textAlign:'left'
-          }}
-        >
-          {content}
-        </span>
-      )}
-    </span>
   );
 }
 
@@ -1372,173 +233,6 @@ function InfoPill({ label, value, large=false }){
 }
 
 /* ---------- Compare View ---------- */
-function StatInputBox({ label, value, min, max, onChange }) {
-  return (
-    <div className="profile-stat-input">
-      <div className="profile-stat-input-label">{label}</div>
-      <input
-        className="input profile-stat-input-field"
-        type="number"
-        inputMode="numeric"
-        pattern="[0-9]*"
-        min={min}
-        max={max}
-        value={value}
-        onChange={onChange}
-      />
-    </div>
-  );
-}
-
-function StatsRow({ mon, other=null, override=null, otherOverride=null, underlineKeys=new Set(), build, onSetIV, onSetEV, onSetLevel, natureEl=null }) {
-  const baseStats = getBaseStatsFrom(mon || {});
-  const otherBaseStats = other ? getBaseStatsFrom(other) : null;
-  const keyMeta = [
-    { label: 'HP', key: 'hp', color: '#f87171' },
-    { label: 'Att', key: 'attack', color: '#fb923c' },
-    { label: 'Def', key: 'defense', color: '#facc15' },
-    { label: 'Sp. Atk', key: 'special_attack', color: '#60a5fa' },
-    { label: 'Sp. Def', key: 'special_defense', color: '#34d399' },
-    { label: 'Spd', key: 'speed', color: '#f472b6' },
-  ];
-
-  const map = Object.fromEntries(keyMeta.map(({ label, key }) => {
-    const raw = override && override[key] != null ? override[key] : (Number(baseStats[key]) || 0);
-    return [label, raw];
-  }));
-  const otherMap = other ? Object.fromEntries(keyMeta.map(({ label, key }) => {
-    const raw = otherOverride && otherOverride[key] != null ? otherOverride[key] : (Number(otherBaseStats?.[key]) || 0);
-    return [label, raw];
-  })) : null;
-  const total = keyMeta.reduce((sum, { label }) => sum + (Number(map[label]) || 0), 0);
-  const totalOther = other ? keyMeta.reduce((sum, { label }) => sum + (Number(otherMap?.[label]) || 0), 0) : null;
-
-  const evTotal = ['hp','attack','defense','special_attack','special_defense','speed']
-    .reduce((s,k)=> s + (Number(build?.ev?.[k] || 0) || 0), 0);
-
-  const [showExtras, setShowExtras] = useState(false);
-
-  const maxStatValue = Math.max(
-    180,
-    ...keyMeta.map(({ label }) => Number(map[label]) || 0),
-    ...(other ? keyMeta.map(({ label }) => Number(otherMap?.[label]) || 0) : [])
-  );
-
-  const valueToPercent = (value) => {
-    const pct = Math.max(6, Math.round((Number(value) || 0) / maxStatValue * 100));
-    return pct + '%';
-  };
-
-  const toggleExtras = () => {
-    if (showExtras) {
-      for (const { key } of keyMeta) {
-        onSetEV && onSetEV(key, '');
-        onSetIV && onSetIV(key, '');
-      }
-      onSetLevel && onSetLevel('');
-    }
-    setShowExtras((prev) => !prev);
-  };
-
-  const underlineTotal = underlineKeys?.has('total');
-
-  return (
-    <div className="profile-stats">
-      <div className="profile-stats-lines">
-        {keyMeta.map(({ label, key, color }) => {
-          const value = map[label] ?? '-';
-          const numericValue = Number(value) || 0;
-          const underline = underlineKeys?.has(key);
-          const diff = other ? ((Number(map[label]) || 0) - (Number(otherMap?.[label]) || 0)) : null;
-
-          return (
-            <div key={label} className="profile-stat-line">
-              <span className="profile-stat-label">{label}</span>
-              <div className="profile-stat-bar">
-                <div className="profile-stat-bar-fill" style={{ width: valueToPercent(numericValue), background: color }} />
-              </div>
-              <span className={'profile-stat-value' + (underline ? ' is-underlined' : '')}>{value ?? '-'}</span>
-              {diff != null && diff !== 0 && (
-                <span className={'profile-stat-diff ' + (diff > 0 ? 'is-positive' : 'is-negative')}>
-                  {diff > 0 ? '+' + diff : diff}
-                </span>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      <div className="profile-stat-total">
-        <span className="profile-stat-label">Total</span>
-        <div className="profile-stat-total-value">
-          <span className={'profile-stat-value' + (underlineTotal ? ' is-underlined' : '')}>{total || '-'}</span>
-          {totalOther != null && totalOther !== undefined && (total - totalOther) !== 0 && (
-            <span className={'profile-stat-diff ' + ((total - totalOther) > 0 ? 'is-positive' : 'is-negative')}>
-              {(total - totalOther) > 0 ? '+' + (total - totalOther) : (total - totalOther)}
-            </span>
-          )}
-        </div>
-      </div>
-      {natureEl && (
-        <div className="profile-nature-row">
-          {natureEl}
-        </div>
-      )}
-      <button type="button" className="profile-stats-toggle" onClick={toggleExtras}>
-        Include IVs and EVs
-        <span className="profile-stats-toggle-icon">{showExtras ? 'v' : '>'}</span>
-      </button>
-      {showExtras && (
-        <div className="profile-stats-extra">
-          <div className="profile-stats-extra-grid">
-            {keyMeta.map(({ label, key }) => (
-              <StatInputBox
-                key={'iv-' + key}
-                label={label + ' IV'}
-                value={build?.iv?.[key] ?? ''}
-                min={0}
-                max={31}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  const val = raw === '' ? '' : clamp(parseInt(raw, 10) || 0, 0, 31);
-                  onSetIV && onSetIV(key, val);
-                }}
-              />
-            ))}
-            <StatInputBox
-              label="Level"
-              value={build?.level ?? ''}
-              min={1}
-              max={100}
-              onChange={(e) => {
-                const raw = e.target.value;
-                const val = raw === '' ? '' : clamp(parseInt(raw, 10) || 0, 1, 100);
-                onSetLevel && onSetLevel(val);
-              }}
-            />
-            {keyMeta.map(({ label, key }) => (
-              <StatInputBox
-                key={'ev-' + key}
-                label={label + ' EV'}
-                value={build?.ev?.[key] ?? ''}
-                min={0}
-                max={252}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  const val = raw === '' ? '' : clamp(parseInt(raw, 10) || 0, 0, 252);
-                  onSetEV && onSetEV(key, val);
-                }}
-              />
-            ))}
-            <div className="profile-stat-total-card">
-              <div className="profile-stat-input-label">EV Total</div>
-              <div className="profile-stat-total-value"><span>{evTotal || 0}</span></div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 function AbilityInline({ idx, name }){
   const desc = useAbilityDesc(name);
@@ -1815,8 +509,6 @@ function CompareBlock({ mon, other, onClear, onReplace, onReplaceFromTeam, build
   );
 }
 
-
-
 function CompareView({ left, right, onClearLeft, onClearRight, onReplaceLeft, onReplaceRight, onReplaceLeftFromTeam, onReplaceRightFromTeam }){
   const { list: natureList, byName: naturesByName } = useNatures();
 
@@ -1906,65 +598,6 @@ function CompareView({ left, right, onClearLeft, onClearRight, onReplaceLeft, on
   );
 }
 
-function formatHeight(h){ return h==null? '--' : `${(h/10).toFixed(1)} m`; }
-function formatWeight(w){ return w==null? '--' : `${(w/10).toFixed(1)} kg`; }
-function formatGenderRatio(r){
-  if (r == null) return "--";
-  const female = Math.round((r/255)*100);
-  const male = 100 - female;
-  return `${male}% M / ${female}% F`;
-}
-/* ---------- Method & Rarity palettes ---------- */
-function methodKey(m=''){ return String(m).toLowerCase().trim(); }
-
-function MethodPill({ method, compact=false, hordeSize }){
-  const { methodColors, rarityColors } = React.useContext(ColorContext);
-  if (!method) return null;
-  let label = cleanMethodLabel(method);
-  if (hordeSize && /^horde/i.test(label)) {
-    label = `${label} (x${hordeSize})`;
-  }
-  const m = methodKey(label);
-  const raw = m.replace(/[^a-z]+/g, ' ');
-  const base = /\blure\b/.test(raw)
-    ? 'lure'
-    : /\bhorde\b/.test(raw)
-    ? 'horde'
-    : (methodColors[m] ? m : m.replace(/\s*\(.*\)$/,''));
-  const bg = base === 'lure'
-    ? (rarityColors[base] || '#7f8c8d')
-    : (methodColors[base] || '#7f8c8d');
-  return (
-    <span style={{
-      display:'inline-block', padding:'2px 8px', fontSize:compact?11:12, borderRadius:999,
-      color:'#111', background:bg, fontWeight:800, border:'1px solid #00000022'
-    }}>
-      {label}
-    </span>
-  );
-}
-
-function RarityPill({ rarity, compact=false, hordeSize }){
-  const { rarityColors } = React.useContext(ColorContext);
-  if (!rarity) return null;
-  const k = rarityKey(rarity);
-  const isPercent = /^\d+%$/.test(k);
-  const bg = isPercent ? '#13B5A6' : (rarityColors[k] || '#BDC3C7');
-  const color = '#111';
-  let label = rarity;
-  if (hordeSize && /^horde/i.test(rarity)) {
-    label = `Horde (x${hordeSize})`;
-  }
-  return (
-    <span style={{
-      display:'inline-block', padding:'2px 8px', fontSize:compact?11:12, borderRadius:999,
-      color, background:bg, fontWeight:800, border:'1px solid #00000022'
-    }}>
-      {label}
-    </span>
-  );
-}
-
 function LevelPill({ min, max, compact=false }){
   const { rarityColors } = useContext(ColorContext);
   const hasMin = min != null;
@@ -1995,18 +628,6 @@ function ItemPill({ item, compact=false }){
     }}>
       {item}
     </span>
-  );
-}
-
-function PokeballIcon({ filled=false, size=20 }){
-  const stroke = filled ? '#000' : '#bbb';
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32">
-      <circle cx="16" cy="16" r="15" fill={filled ? '#fff' : 'none'} stroke={stroke} strokeWidth="2" />
-      {filled && <path d="M16 1a15 15 0 0 1 15 15H1A15 15 0 0 1 16 1z" fill="#e53e3e" />}
-      <path d="M1 16h30" stroke={stroke} strokeWidth="2" />
-      <circle cx="16" cy="16" r="5" fill={filled ? '#fff' : 'none'} stroke={stroke} strokeWidth="2" />
-    </svg>
   );
 }
 
@@ -2196,519 +817,6 @@ function AreaMonCard({
   );
 }
 
-/* ---------- Move data & tables ---------- */
-
-const CATEGORY_COLORS = {
-  physical:'#C92112',
-  special:'#1976D2',
-  status:'#A0A0A0'
-};
-function CategoryPill({ cat }){
-  const key = String(cat || '').toLowerCase();
-  if(!key) return null;
-  const bg = CATEGORY_COLORS[key] || '#555';
-  return (
-    <span style={{display:'inline-block', padding:'2px 8px', fontSize:12, borderRadius:999,
-      fontWeight:800, color:'#fff', background:bg, textTransform:'capitalize'}}>{key}</span>
-  );
-}
-
-const MOVE_CACHE = new Map();
-const MOVE_SLUG_EXCEPTIONS = new Map([
-  ['smokescreen', 'smokescreen']
-]);
-function moveSlug(name=''){
-  const trimmed = String(name || '').trim();
-  if(!trimmed) return '';
-  const normalized = trimmed.toLowerCase().replace(/[^a-z0-9]+/g,'');
-  const exception = MOVE_SLUG_EXCEPTIONS.get(normalized);
-  if(exception) return exception;
-  const withDelimiters = trimmed
-    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-    .replace(/([A-Z])([A-Z][a-z])/g, '$1-$2');
-  return withDelimiters.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
-}
-
-function mapMoveResponse(json) {
-  if (!json || typeof json !== 'object') return null;
-  const entries = Array.isArray(json.effect_entries) ? json.effect_entries : [];
-  const english = entries.find(entry => entry?.language?.name === 'en') || entries[0];
-  let shortEffect = english?.short_effect || english?.effect || null;
-  if (shortEffect && typeof json.effect_chance === 'number') {
-    shortEffect = shortEffect.replace(/\$effect_chance/g, String(json.effect_chance));
-  }
-  if (shortEffect) {
-    shortEffect = shortEffect.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim();
-  }
-  return {
-    type: json?.type?.name,
-    category: json?.damage_class?.name,
-    power: json?.power,
-    accuracy: json?.accuracy,
-    shortEffect: shortEffect || null,
-  };
-}
-function useMoveData(name){
-  const slug = moveSlug(name);
-  const [data,setData] = useState(() => MOVE_CACHE.get(slug));
-  useEffect(() => {
-    let alive = true;
-    if(!slug) return;
-    const cached = MOVE_CACHE.get(slug);
-    if(cached){
-      setData(cached);
-      return;
-    }
-    (async () => {
-      try{
-        const res = await fetch(`https://pokeapi.co/api/v2/move/${slug}`);
-        const json = await res.json();
-        const info = mapMoveResponse(json);
-        MOVE_CACHE.set(slug, info);
-        if(alive) setData(info);
-      }catch(e){
-        MOVE_CACHE.set(slug, null);
-        if(alive) setData(null);
-      }
-    })();
-    return () => { alive = false; };
-  }, [slug]);
-  return data || null;
-}
-
-const moveCell = { padding:'2px 4px', border:'1px solid var(--divider)' };
-
-function formatMoveLabel(name=''){
-  if (!name) return '';
-  return String(name)
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
-    .trim();
-}
-
-function MoveRow({ mv, showLevel=false }){
-  const name = typeof mv === 'string' ? mv : mv.move;
-  const level = typeof mv === 'string' ? null : mv.level;
-  const slug = moveSlug(name);
-  const data = useMoveData(name);
-  const shortEffect = data?.shortEffect;
-  const hasSlug = Boolean(slug);
-  const tooltipContent = shortEffect || (hasSlug ? (MOVE_CACHE.has(slug) ? 'No short effect available.' : 'Loading move info...') : null);
-  const displayName = formatMoveLabel(name);
-  const cursorStyle = hasSlug ? 'help' : 'default';
-  return (
-    <tr>
-      {showLevel && (
-        <td style={{ ...moveCell, textAlign:'center' }}>{level ?? '-'}</td>
-      )}
-      <td style={{ ...moveCell, textAlign:'left' }}>
-        <DelayedTooltip delay={500} content={tooltipContent}>
-          <span
-            style={{ cursor: cursorStyle, display:'inline-flex', alignItems:'center' }}
-            aria-label={tooltipContent || undefined}
-          >
-            {displayName}
-          </span>
-        </DelayedTooltip>
-      </td>
-      <td style={{ ...moveCell, textAlign:'center' }}>
-        {data?.type ? <TypePill t={data.type} compact /> : '\u2014'}
-      </td>
-      <td style={{ ...moveCell, textAlign:'center' }}>
-        {data?.category ? <CategoryPill cat={data.category} /> : '\u2014'}
-      </td>
-      <td style={{ ...moveCell, textAlign:'center' }}>{data?.power ?? '\u2014'}</td>
-      <td style={{ ...moveCell, textAlign:'center' }}>{data?.accuracy ?? '\u2014'}</td>
-    </tr>
-  );
-}
-
-function MovesTable({ title, moves = [], showLevel = false }) {
-  const [sort, setSort] = useState({ key: null, dir: 1 });
-  const [refresh, setRefresh] = useState(0);
-
-  // Reset sort when the move list changes
-  useEffect(() => {
-    setSort({ key: null, dir: 1 });
-  }, [moves]);
-
-  // Preload move data so sorting by type/power/etc. works immediately
-  useEffect(() => {
-    let alive = true;
-    const names = Array.from(new Set(moves.map(m => (typeof m === 'string' ? m : m.move))));
-    (async () => {
-      for (const name of names) {
-        const slug = moveSlug(name);
-        if (!slug || MOVE_CACHE.has(slug)) continue;
-        try {
-          const res = await fetch(`https://pokeapi.co/api/v2/move/${slug}`);
-          const json = await res.json();
-          const info = mapMoveResponse(json);
-          MOVE_CACHE.set(slug, info);
-        } catch (e) {}
-      }
-      if (alive) setRefresh(r => r + 1);
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [moves]);
-
-  const sorted = useMemo(() => {
-    const arr = [...moves];
-    if (!sort.key) return arr;
-    const dir = sort.dir;
-    const getName = mv => (typeof mv === 'string' ? mv : mv.move);
-    const getLevel = mv => (typeof mv === 'string' ? null : mv.level);
-    const getData = mv => MOVE_CACHE.get(moveSlug(getName(mv))) || {};
-    return arr.sort((a, b) => {
-      const nameA = getName(a);
-      const nameB = getName(b);
-      const dataA = getData(a);
-      const dataB = getData(b);
-      switch (sort.key) {
-        case 'name':
-          return nameA.localeCompare(nameB) * dir;
-        case 'type': {
-          const t = (dataA.type || '').localeCompare(dataB.type || '');
-          return t ? t * dir : nameA.localeCompare(nameB);
-        }
-        case 'cat': {
-          const c = (dataA.category || '').localeCompare(dataB.category || '');
-          return c ? c * dir : nameA.localeCompare(nameB);
-        }
-        case 'power': {
-          const pa = dataA.power;
-          const pb = dataB.power;
-          const psa = pa ?? (dir === -1 ? -Infinity : Infinity);
-          const psb = pb ?? (dir === -1 ? -Infinity : Infinity);
-          const diff = psa - psb;
-          return diff ? diff * dir : nameA.localeCompare(nameB);
-        }
-        case 'acc': {
-          const aa = dataA.accuracy;
-          const ab = dataB.accuracy;
-          const asa = aa ?? (dir === -1 ? -Infinity : Infinity);
-          const asb = ab ?? (dir === -1 ? -Infinity : Infinity);
-          const diff = asa - asb;
-          return diff ? diff * dir : nameA.localeCompare(nameB);
-        }
-        case 'lv': {
-          const la = getLevel(a) ?? (dir === 1 ? Infinity : -Infinity);
-          const lb = getLevel(b) ?? (dir === 1 ? Infinity : -Infinity);
-          const diff = la - lb;
-          return diff ? diff * dir : nameA.localeCompare(nameB);
-        }
-        default:
-          return 0;
-      }
-    });
-  }, [moves, sort, refresh]);
-
-  const handleSort = key => {
-    setSort(prev => {
-      if (prev.key === key) {
-        return { key, dir: -prev.dir };
-      }
-      const dir = key === 'power' || key === 'acc' ? -1 : 1;
-      return { key, dir };
-    });
-  };
-
-  // Use proper Unicode arrows for sort indicators (up/down)
-  const sortArrow = key => (sort.key === key ? (sort.dir === 1 ? '\u25B2' : '\u25BC') : '');
-
-  return (
-    <div style={{ border: '1px solid var(--divider)', borderRadius: 8, padding: '8px 10px', background: 'var(--surface)' }}>
-      <div style={{ fontWeight: 700, marginBottom: 4 }}>{title}</div>
-      {sorted.length ? (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
-          <colgroup>
-            {showLevel && <col style={{ width: '40px' }} />}
-            <col />
-            <col style={{ width: '80px' }} />
-            <col style={{ width: '80px' }} />
-            <col style={{ width: '50px' }} />
-            <col style={{ width: '50px' }} />
-          </colgroup>
-          <thead>
-            <tr>
-              {showLevel && (
-                <th
-                  style={{ ...moveCell, textAlign: 'center', cursor: 'pointer' }}
-                  onClick={() => handleSort('lv')}
-                >
-                  Lv {sortArrow('lv')}
-                </th>
-              )}
-              <th
-                style={{ ...moveCell, textAlign: 'left', cursor: 'pointer' }}
-                onClick={() => handleSort('name')}
-              >
-                Move {sortArrow('name')}
-              </th>
-              <th
-                style={{ ...moveCell, textAlign: 'center', cursor: 'pointer' }}
-                onClick={() => handleSort('type')}
-              >
-                Type {sortArrow('type')}
-              </th>
-              <th
-                style={{ ...moveCell, textAlign: 'center', cursor: 'pointer' }}
-                onClick={() => handleSort('cat')}
-              >
-                Cat {sortArrow('cat')}
-              </th>
-              <th
-                style={{ ...moveCell, textAlign: 'center', cursor: 'pointer' }}
-                onClick={() => handleSort('power')}
-              >
-                Pwr {sortArrow('power')}
-              </th>
-              <th
-                style={{ ...moveCell, textAlign: 'center', cursor: 'pointer' }}
-                onClick={() => handleSort('acc')}
-              >
-                Acc {sortArrow('acc')}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((mv) => {
-              const baseKey = typeof mv === 'string'
-                ? moveSlug(mv)
-                : `${moveSlug(mv.move)}-${mv.level ?? ''}`;
-              const key = `${baseKey}-${moves.indexOf(mv)}`;
-              return <MoveRow key={key} mv={mv} showLevel={showLevel} />;
-            })}
-          </tbody>
-        </table>
-      ) : (
-        <div className="label-muted">None</div>
-      )}
-    </div>
-  );
-}
-
-function EvolutionChain({ mon, onSelect }) {
-  const base = React.useMemo(() => {
-    if (!mon) return null;
-    let cur = mon;
-    while (EVO_PARENTS.get(cur.id)?.length) {
-      const parentId = EVO_PARENTS.get(cur.id)[0];
-      const parent = getMonByDex(parentId);
-      if (!parent) break;
-      cur = parent;
-    }
-    return cur;
-  }, [mon]);
-
-  const renderMon = (m, isFormDisplay = false) => {
-    if (!m) return null;
-    // For forms, check if the name matches (since forms might not have IDs)
-    const isSelected = isFormDisplay
-      ? !!(mon && m && normalizeKey(m.name) === normalizeKey(mon.name))
-      : !!(mon && m && m.id === mon.id);
-    const canSelect = !!(onSelect && !isSelected);
-    const handleSelect = () => {
-      if (onSelect) onSelect(m);
-    };
-    const handleKeyDown = (evt) => {
-      if (evt.key === 'Enter' || evt.key === ' ') {
-        evt.preventDefault();
-        handleSelect();
-      }
-    };
-    return (
-      <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-        <div style={{ textAlign:'center' }}>
-          <div
-            style={{
-              display:'inline-block',
-              padding:2,
-              border: isSelected ? '2px solid var(--accent)' : '2px solid transparent',
-              cursor: canSelect ? 'pointer' : 'default',
-            }}
-            role={canSelect ? 'button' : undefined}
-            tabIndex={canSelect ? 0 : undefined}
-            onClick={canSelect ? handleSelect : undefined}
-            onKeyDown={canSelect ? handleKeyDown : undefined}
-          >
-            <Sprite mon={m} size={72} alt={m.name} />
-          </div>
-          <div className="label-muted">#{m.id ? String(m.id).padStart(3,'0') : '--'}</div>
-          {isSelected ? (
-            <span style={{ color:'var(--accent)', fontWeight:700 }}>
-              {titleCase(m.name)}
-            </span>
-          ) : (
-            <button
-              type="button"
-              className="link-btn"
-              style={{ background:'none', border:0, padding:0, color:'var(--accent)', fontWeight:700, cursor:'pointer' }}
-              onClick={handleSelect}
-            >
-              {titleCase(m.name)}
-            </button>
-          )}
-          <div style={{ display:'flex', gap:6, flexWrap:'wrap', justifyContent:'center', marginTop:4 }}>
-            {(m.types || []).map(t => <TypePill key={t} t={t} compact />)}
-          </div>
-        </div>
-        {Array.isArray(m.evolutions) && m.evolutions.length > 0 && (
-          <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-            {m.evolutions.map((evo) => {
-              const child = getMonByDex(evo.id);
-
-              const rawType = String(evo.type || '').toLowerCase();
-              const locationMap = {
-                level_location_1: 'Lv. Up Near A Special Magnetic Field',
-                level_location_2: 'Lv. Up Near A Moss Rock',
-                level_location_3: 'Lv. Up Near An Ice Rock',
-              };
-              const isLevelLocation = Object.prototype.hasOwnProperty.call(locationMap, rawType);
-              const typeLabel = rawType.replace(/_/g, ' ');
-              let label = isLevelLocation ? locationMap[rawType] : titleCase(typeLabel);
-
-              const needsItem = rawType.includes('item');
-              const isTrade = rawType.startsWith('trade');
-              let val = null;
-              let itemId = null;
-              if (!isLevelLocation) {
-                if (evo.item_name) {
-                  val = evo.item_name;
-                  const found = ITEM_INDEX.byName.get(normalizeKey(evo.item_name));
-                  if (found?.id != null) itemId = found.id;
-                } else if (needsItem && typeof evo.val === 'number' && ITEM_INDEX.byId.has(evo.val)) {
-                  val = ITEM_INDEX.byId.get(evo.val)?.name;
-                  itemId = evo.val;
-                } else if (evo.val != null) {
-                  val = evo.val;
-                }
-              }
-
-              if (rawType === 'level_with_monster' && typeof evo.val === 'number') {
-                const partner = getMonByDex(evo.val);
-                if (partner) {
-                  label = `Level up with ${titleCase(partner.name)}`;
-                  val = null;
-                }
-              }
-
-              if (rawType === 'level_with_skill' && typeof evo.val === 'number') {
-                const move = MOVES_INDEX.byId.get(evo.val);
-                if (move) {
-                  label = `Level up knowing ${move.name}`;
-                  val = null;
-                }
-              }
-
-              if (
-                rawType === 'happiness' ||
-                rawType === 'happiness_day' ||
-                rawType === 'happiness_night'
-              ) {
-                label = 'Evolve with Happiness';
-                if (rawType === 'happiness_day') label += ': Day';
-                if (rawType === 'happiness_night') label += ': Night';
-                val = null;
-              }
-
-              // Clean up bogus trade values like "0:" so it renders as plain "Trade"
-              if (isTrade) {
-                const sval = String(val ?? '').trim();
-                if (!sval || /^0:?$/.test(sval)) {
-                  val = null;
-                }
-              }
-
-              if (val != null) {
-                    if (/with item$/i.test(label) && (evo.item_name || (needsItem && ITEM_INDEX.byId.has(evo.val)))) {
-                      label = `${label.replace(/ item$/i, '')} ${val}`;
-                   } else {
-                      label = `${label}: ${val}`;
-                   }
-                 }
-
-          return (
-                <div key={evo.id} style={{ display:'flex', alignItems:'center', gap:16 }}>
-                  <div style={{ textAlign:'center', fontSize:12, display:'flex', flexDirection:'column', alignItems:'center', gap:6 }}>
-                    {itemId != null && (
-                      <img
-                        src={`${ITEM_ICON_BASE}${itemId}.png`}
-                        alt={String(val || 'Item')}
-                        style={{ width:22, height:22, imageRendering:'pixelated' }}
-                        onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = ITEM_PLACEHOLDER; e.currentTarget.style.imageRendering = 'auto'; }}
-                      />
-                    )}
-                    <div style={{ fontSize:24 }}>{"\u2192"}</div>
-                    <div className="label-muted">{label}</div>
-                  </div>
-                  {renderMon(child)}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  if (!base) return null;
-  const hasChain = base.id !== mon.id || (base.evolutions || []).length > 0;
-
-  // Find the true base form if current mon is an alternate form
-  let formsSource = base;
-  if (mon?.name) {
-    // Check if current mon is an alternate form by checking if any Pokemon has this as a form
-    const monNameKey = normalizeKey(mon.name);
-    const trueBase = DEX_LIST.find(p =>
-      Array.isArray(p.forms) && p.forms.some(f => normalizeKey(f.name) === monNameKey)
-    );
-    if (trueBase) {
-      formsSource = trueBase;
-    }
-  }
-
-  const hasForms = Array.isArray(formsSource.forms) && formsSource.forms.length > 0;
-
-  // Determine the title based on what's available
-  let title = 'Evolution';
-  if (hasForms && hasChain) {
-    title = 'Evolution / Forms';
-  } else if (hasForms && !hasChain) {
-    title = 'Forms';
-  }
-
-  return (
-    <div style={{ margin:'16px 0 6px' }}>
-      <div className="label-muted" style={{ fontWeight:700, marginBottom:8 }}>{title}</div>
-      {!hasChain && !hasForms ? (
-        <div className="label-muted">This Pokemon does not Evolve</div>
-      ) : (
-        <>
-          {hasChain && renderMon(base)}
-          {hasForms && (
-            <div style={{ marginTop: hasChain ? 16 : 0 }}>
-              {hasChain && <div className="label-muted" style={{ fontWeight:700, marginBottom:8, marginTop:16 }}>Forms</div>}
-              <div style={{ display:'flex', flexWrap:'wrap', gap:16 }}>
-                {/* Show the base form first */}
-                {renderMon(formsSource, true)}
-                {/* Then show all the other forms */}
-                {formsSource.forms.map((form, idx) => (
-                  <div key={`form-${idx}`}>
-                    {renderMon(form, true)}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
 /* ---------- Loaders ---------- */
 function useTmLocations(){
   const [index, setIndex] = useState({});
@@ -2771,154 +879,6 @@ function similarity(a='', b=''){
   return (len1 === 0 && len2 === 0) ? 1 : 1 - dist / Math.max(len1, len2);
 }
 
-class LiveRouteClient {
-  constructor(){
-    this.ws = null;
-    this.listeners = new Set();
-    this.reconnectTimer = null;
-    this.pathToggle = false;
-    this.lastMsgTs = 0;
-    this.lastPayload = null; // cache last message
-    this.disabled = !isOcrEnabled();
-  }
-  connect(){
-    if (this.disabled || !isOcrEnabled()) return;
-    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return;
-    try{
-      const url = this.pathToggle ? 'ws://127.0.0.1:8765/live/' : 'ws://127.0.0.1:8765/live';
-      this.ws = new WebSocket(url);
-
-      this.ws.onmessage = (ev) => {
-        this.lastMsgTs = Date.now();
-        let payload = ev.data;
-        try { payload = JSON.parse(ev.data); } catch {}
-        this.lastPayload = payload; // cache
-        this.listeners.forEach(fn => fn(payload));
-      };
-      const onClose = () => {
-        this.pathToggle = !this.pathToggle;
-        if (!this.disabled && isOcrEnabled()) this.scheduleReconnect();
-      };
-      this.ws.onclose = onClose;
-      this.ws.onerror = onClose;
-    }catch{
-      if (!this.disabled && isOcrEnabled()) this.scheduleReconnect();
-    }
-  }
-  on(fn){
-    this.listeners.add(fn);
-    // Immediately replay last message so the tab shows data when you return
-    if (this.lastPayload !== null) {
-      try { fn(this.lastPayload); } catch {}
-    }
-    return () => this.listeners.delete(fn);
-  }
-  scheduleReconnect(){
-    if (this.disabled || !isOcrEnabled()) return;
-    if (this.reconnectTimer) return;
-    this.reconnectTimer = window.setTimeout(()=> {
-      this.reconnectTimer = null;
-      this.connect();
-    }, 1500);
-  }
-  isOpen(){
-    return !!this.ws && this.ws.readyState === WebSocket.OPEN;
-  }
-  forceReconnect(){
-    try { if (this.ws) this.ws.close(); } catch {}
-    this.ws = null;
-    this.lastPayload = null;          // <-- clear cached message so UI resets
-    // Clear any pending reconnect to avoid residual timers after a manual restart
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-    if (!this.disabled && isOcrEnabled()) setTimeout(()=> this.connect(), 100);
-  }
-  setEnabled(enabled){
-    this.disabled = !enabled;
-    if (this.disabled) {
-      try { if (this.ws) this.ws.close(); } catch {}
-      this.ws = null;
-      this.lastPayload = null;
-    } else {
-      this.connect();
-    }
-  }
-}
-const liveRouteClient = new LiveRouteClient();
-
-class LiveBattleClient {
-  constructor(){
-    this.ws = null;
-    this.listeners = new Set();
-    this.reconnectTimer = null;
-    this.pathToggle = false;
-    this.lastMsgTs = 0;
-    this.lastPayload = null;
-    this.disabled = !isOcrEnabled();
-  }
-  connect(){
-    if (this.disabled || !isOcrEnabled()) return;
-    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return;
-    try{
-      const url = this.pathToggle ? 'ws://127.0.0.1:8765/battle/' : 'ws://127.0.0.1:8765/battle';
-      this.ws = new WebSocket(url);
-      this.ws.onmessage = (ev) => {
-        this.lastMsgTs = Date.now();
-        let payload = ev.data;
-        try { payload = JSON.parse(ev.data); } catch {}
-        this.lastPayload = payload;
-        this.listeners.forEach(fn => fn(payload));
-      };
-      const onClose = () => {
-        this.pathToggle = !this.pathToggle;
-        if (!this.disabled && isOcrEnabled()) this.scheduleReconnect();
-      };
-      this.ws.onclose = onClose;
-      this.ws.onerror = onClose;
-    }catch{
-      if (!this.disabled && isOcrEnabled()) this.scheduleReconnect();
-    }
-  }
-  on(fn){
-    this.listeners.add(fn);
-    if (this.lastPayload !== null) {
-      try { fn(this.lastPayload); } catch {}
-    }
-    return () => this.listeners.delete(fn);
-  }
-  scheduleReconnect(){
-    if (this.disabled || !isOcrEnabled()) return;
-    if (this.reconnectTimer) return;
-    this.reconnectTimer = window.setTimeout(()=> {
-      this.reconnectTimer = null;
-      this.connect();
-    }, 1500);
-  }
-  isOpen(){
-    return !!this.ws && this.ws.readyState === WebSocket.OPEN;
-  }
-  forceReconnect(){
-    try { if (this.ws) this.ws.close(); } catch {}
-    this.ws = null;
-    this.lastPayload = null;
-    this.pathToggle = !this.pathToggle;
-    if (!this.disabled && isOcrEnabled()) setTimeout(()=> this.connect(), 100);
-  }
-  setEnabled(enabled){
-    this.disabled = !enabled;
-    if (this.disabled) {
-      try { if (this.ws) this.ws.close(); } catch {}
-      this.ws = null;
-      this.lastPayload = null;
-    } else {
-      this.connect();
-    }
-  }
-}
-const liveBattleClient = new LiveBattleClient();
-
 function coerceIncoming(msg){
   if (!msg) return null;
   if (typeof msg === 'string') {
@@ -2967,7 +927,7 @@ function coerceBattleIncoming(msg){
 /* ======================= LIVE ROUTE PANEL ======================= */
 
 function LiveRoutePanel({ areasIndex, locIndex, onViewMon }){
-  const [ocrEnabled, setOcrEnabled] = useState(isOcrEnabled());
+  const [ocrEnabled, setOcrEnabled] = useState(isOcrEnabled);
   // Restore last confirmed route so it persists between tab switches
   const LAST_KEY = 'liveRouteLast';
   const lastRoute = (() => {
@@ -3410,7 +1370,7 @@ function LiveRoutePanel({ areasIndex, locIndex, onViewMon }){
 
 /* ======================= LIVE BATTLE PANEL ======================= */
 function LiveBattlePanel({ onViewMon, onCompare }){
-  const [ocrEnabled, setOcrEnabled] = useState(isOcrEnabled());
+  const [ocrEnabled, setOcrEnabled] = useState(isOcrEnabled);
   const [rawText, setRawText] = useState('');
   const [confidence, setConfidence] = useState(null);
   const [mons, setMons] = useState([]);
@@ -4010,10 +1970,8 @@ function App(){
       const pokemonName = data.pokemonName;
       const isAlpha = data.isAlpha;
 
-      // Find the Pokemon in the dex by name
-      const pokemon = DEX.find(p =>
-        p.name?.toLowerCase() === pokemonName.toLowerCase()
-      );
+      // Find the Pokemon in the dex by name (getMon normalises case and punctuation)
+      const pokemon = getMon(pokemonName);
 
       if (!pokemon) {
         console.warn('[AutoCatch] Pokemon not found in dex:', pokemonName);
@@ -4071,11 +2029,18 @@ function App(){
   const searchClearIntentRef = useRef(false);
   const [showRegionMenu, setShowRegionMenu] = useState(false);
   const [selected, setSelected] = useState(null);
-  const [mode, setMode]         = useState('pokemon'); // 'pokemon' | 'areas' | 'horde' | 'tm' | 'items' | 'breeding' | 'daycare' | 'team' | 'live' | 'battle' | 'market'
-  const [toolsOpen, setToolsOpen] = useState(false);
+  const [mode, setMode]         = useState(DEFAULT_MODE); // 'pokemon' | 'areas' | 'horde' | 'tm' | 'items' | 'breeding' | 'daycare' | 'team' | 'live' | 'battle' | 'market'
 
   const [showTypeChart, setShowTypeChart] = useState(false);
   const [showResources, setShowResources] = useState(false);
+
+  // Sidebar action items (dex windows, type chart, resources) run a side
+  // effect instead of switching mode.
+  const handleNavAction = (item) => {
+    if (item.action === 'open-dex') openDex(item.dex);
+    else if (item.action === 'type-chart') setShowTypeChart(true);
+    else if (item.action === 'resources') setShowResources(true);
+  };
 
   // Compare mode state for Pokemon Search
   const [compareMode, setCompareMode] = useState(false);
@@ -4091,28 +2056,6 @@ function App(){
     }
   }, [mode]);
 
-  useEffect(() => { setToolsOpen(false); }, [mode]);
-
-  // Handle resources mode
-  useEffect(() => {
-    if (mode === 'resources') {
-      setShowResources(true);
-      setMode('home'); // Return to home after opening resources
-    }
-  }, [mode]);
-
-
-  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'classic');
-  useEffect(() => {
-    document.body.classList.remove('theme-classic','theme-white','theme-black','theme-pearl','theme-diamond','theme-red','theme-blue','theme-gold','theme-silver','theme-emerald','theme-neo');
-    document.documentElement.classList.remove('theme-classic','theme-white','theme-black','theme-pearl','theme-diamond','theme-red','theme-blue','theme-gold','theme-silver','theme-emerald','theme-neo');
-    document.body.classList.add(`theme-${theme}`);
-    document.documentElement.classList.add(`theme-${theme}`);
-    try { localStorage.setItem('theme', theme); } catch {}
-  }, [theme]);
-  const [showMoveset, setShowMoveset] = useState(false);
-  const [showSmogonSets, setShowSmogonSets] = useState(false);
-  const [showLocations, setShowLocations] = useState(false);
   const [statusEffect, setStatusEffect] = useState(null);
   const [isOneHp, setIsOneHp] = useState(false);
   const [selectedBallKey, setSelectedBallKey] = useState(BALL_OPTIONS[0].key);
@@ -4202,9 +2145,23 @@ function App(){
 
   const [showUpToDate, setShowUpToDate] = useState(false);
 
+  // OCR toggle from Options. Keep both live clients in step even when their
+  // page isn't open, so the sidebar live status recovers when OCR comes back.
+  const [ocrEnabled, setOcrEnabled] = useState(isOcrEnabled);
   useEffect(() => {
-    if (!ocrSupported && mode === 'live') setMode('pokemon');
-  }, [ocrSupported, mode]);
+    const onChange = (e) => {
+      const en = !!(e?.detail?.enabled ?? isOcrEnabled());
+      setOcrEnabled(en);
+      try { liveRouteClient.setEnabled(en); } catch {}
+      try { liveBattleClient.setEnabled(en); } catch {}
+    };
+    window.addEventListener('ocr-enabled-changed', onChange);
+    return () => window.removeEventListener('ocr-enabled-changed', onChange);
+  }, []);
+
+  useEffect(() => {
+    if ((!ocrSupported || !ocrEnabled) && (mode === 'live' || mode === 'battle')) setMode(DEFAULT_MODE);
+  }, [ocrSupported, ocrEnabled, mode]);
 
   useEffect(() => {
     liveBattleClient.connect();
@@ -4301,7 +2258,6 @@ function App(){
   const areasRevByMon = useMemo(() => buildReverseAreasIndex(areasClean), [areasClean]); // NEW
   const regionOptions = useMemo(() => ['All', ...Object.keys(areasClean).sort((a,b)=>a.localeCompare(b))], [areasClean]);
 
-
   const [typeFilter, setTypeFilter] = useState('');
   const [typeFilter2, setTypeFilter2] = useState('');
   const [eggFilter, setEggFilter] = useState('');
@@ -4357,26 +2313,7 @@ function App(){
 
   const hasFilters = Boolean(typeFilter || typeFilter2 || eggFilter || abilityFilter || regionFilter || moveFilter || itemFilter);
 
-  const headerSprite = useMemo(() => {
-    const opt = { shiny: !!shinyGlobal };
-    if (theme === 'red') return spriteSources(getMon('Charizard'), opt)[0] || null;
-    if (theme === 'blue') return spriteSources(getMon('Blastoise'), opt)[0] || null;
-    if (theme === 'gold') return spriteSources(getMon('Ho-Oh'), opt)[0] || null;
-    if (theme === 'silver') return spriteSources(getMon('Lugia'), opt)[0] || null;
-    if (theme === 'emerald') return spriteSources(getMon('Rayquaza'), opt)[0] || null;
-    if (theme === 'black') return spriteSources(getMon('Reshiram'), opt)[0] || null;
-    if (theme === 'white') return spriteSources(getMon('Zekrom'), opt)[0] || null;
-    if (theme === 'diamond') return spriteSources(getMon('Dialga'), opt)[0] || null;
-    if (theme === 'pearl') return spriteSources(getMon('Palkia'), opt)[0] || null;
-    // Exclude Pokemon with ID >= 650 (Event Pokemon with placeholder images)
-    const withSprite = DEX_LIST.filter(d => {
-      if (d?.id != null && d.id >= 650) return false;
-      return spriteSources(d, opt).length > 0;
-    });
-    return withSprite.length ? spriteSources(withSprite[Math.floor(Math.random()*withSprite.length)], opt)[0] : null;
-  }, [theme, shinyGlobal]);
   useEffect(() => { document.title = APP_TITLE; }, []);
-  const headerSrc = headerSprite || TRANSPARENT_PNG;
 
   useEffect(() => {
     setShowRegionMenu(false);
@@ -4395,9 +2332,6 @@ function App(){
     if (!typeFilter) setTypeFilter2('');
   }, [typeFilter]);
   useEffect(() => {
-    setShowMoveset(false);
-    setShowSmogonSets(false);
-    setShowLocations(false);
     setStatusEffect(null);
     setIsOneHp(false);
     setSelectedBallKey(BALL_OPTIONS[0].key);
@@ -4688,7 +2622,6 @@ const marketResults = React.useMemo(() => {
       }))
     );
 
-
     // Locations from dex data
     const dexLocs = (selected.locations || []).map(l => {
       let method = l.type;
@@ -4874,22 +2807,13 @@ const marketResults = React.useMemo(() => {
     <ShinyCaughtContext.Provider value={{ shinyCaught, addShinyEntry, updateShinyEntry, removeShinyEntry }}>
     <ColorContext.Provider value={{ methodColors, rarityColors, setMethodColors, setRarityColors }}>
       <>
-      {/* App-wide overlay controls (top-right) */}
-      <div style={{ position:'fixed', top:10, right:12, zIndex:9999, display:'flex', gap:8 }}>
-        <PatchNotesButton />
-        <OptionsMenu ocrSupported={ocrSupported} />
-      </div>
       {/* Mount the color picker without a visible trigger so Options menu can open it */}
       <ColorPickerButton renderTrigger={false} />
-      {/* Top-center actions (full-width container ignores pointer events; inner wrapper handles clicks) */}
-      <div style={{ position:'fixed', top:10, left:0, right:0, zIndex:9999, display:'flex', justifyContent:'center', pointerEvents:'none' }}>
-        <div style={{ display:'inline-flex', gap:8, pointerEvents:'auto' }}>
-          <CaughtListButton />
-          <AlphaDexButton />
-          <EventDexButton />
-          <ShinyDexButton />
-        </div>
-      </div>
+      {/* Dex windows have no trigger here; the sidebar opens them via openDex */}
+      <CaughtListButton renderTrigger={false} />
+      <AlphaDexButton renderTrigger={false} />
+      <EventDexButton renderTrigger={false} />
+      <ShinyDexButton renderTrigger={false} />
 
 {showUpToDate && (
         <div
@@ -4913,65 +2837,17 @@ const marketResults = React.useMemo(() => {
         </div>
       )}
 
-{mode === 'home' ? (
-        <HomeScreen setMode={setMode} supportsLive={ocrSupported} />
-      ) : (
+      <AppShell
+        mode={mode}
+        onNavigate={setMode}
+        onAction={handleNavAction}
+        ocrSupported={ocrSupported}
+        ocrEnabled={ocrEnabled}
+        onOpenLive={() => setMode('live')}
+      >
       <div className="container">
-        {/* Header */}
-        <div className="header" style={{ alignItems:'center', cursor:'pointer' }} onClick={()=>setMode('home')}>
-          <img src={headerSrc} alt="" style={{ width:56, height:56, objectFit:'contain', imageRendering:'pixelated' }} />
-          <h1 style={{ marginLeft:8 }}>3&apos;s PokeMMO Tool</h1>
-        </div>
-
         {/* Search / Mode Card */}
         <div style={{ ...styles.card, marginBottom:16 }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-            <div style={styles.segWrap}>
-              <button style={styles.segBtn(mode==='pokemon')} onClick={()=>setMode('pokemon')}>Pokemon Search</button>
-              <button style={styles.segBtn(mode==='areas')} onClick={()=>setMode('areas')}>Area Search</button>
-              <button style={styles.segBtn(mode==='horde')} onClick={()=>setMode('horde')}>Horde Search</button>
-              <button style={styles.segBtn(mode==='tm')} onClick={()=>setMode('tm')}>TM Locations</button>
-              <button style={styles.segBtn(mode==='team')} onClick={()=>setMode('team')}>Team Builder</button>
-              <div style={{ position:'relative' }}>
-                <button style={styles.segBtn(mode==='items' || mode==='breeding' || mode==='daycare' || mode==='market')} onClick={()=>setToolsOpen(v=>!v)}>
-                  Tools {toolsOpen ? '▴' : '▾'}
-                </button>
-                {toolsOpen && (
-                  <div style={{ position:'absolute', top:'100%', right:0, background:'var(--surface)', border:'1px solid var(--divider)', borderRadius:8, display:'flex', flexDirection:'column', zIndex:10, overflow:'hidden' }}>
-                    <button style={{ ...styles.segBtn(mode==='items'), width:'100%', borderRadius:0 }} onClick={()=>setMode('items')}>Items</button>
-                    <div style={{ height:1, background:'var(--divider)', opacity:0.4 }} />
-                    <button style={{ ...styles.segBtn(mode==='breeding'), width:'100%', borderRadius:0 }} onClick={()=>setMode('breeding')}>Breeding</button>
-                    <div style={{ height:1, background:'var(--divider)', opacity:0.4 }} />
-                    <button style={{ ...styles.segBtn(mode==='daycare'), width:'100%', borderRadius:0 }} onClick={()=>setMode('daycare')}>Daycare Manager</button>
-                    <div style={{ height:1, background:'var(--divider)', opacity:0.4 }} />
-                    <button style={{ ...styles.segBtn(mode==='market'), width:'100%', borderRadius:0 }} onClick={()=>setMode('market')}>Market</button>
-                    <div style={{ height:1, background:'var(--divider)', opacity:0.4 }} />
-                    <button
-                      style={{ ...styles.segBtn(false), width:'100%', borderRadius:0 }}
-                      onClick={()=>{ setShowTypeChart(true); setToolsOpen(false); }}
-                    >
-                      Type Chart
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-            {/* Resources button */}
-            <div style={{ ...styles.segWrap, margin: '0 auto' }}>
-              <button
-                style={styles.segBtn(false)}
-                onClick={() => setShowResources(true)}
-              >
-                📚 Resources
-              </button>
-            </div>
-          {ocrSupported && (
-            <div style={styles.segWrap}>
-              <button style={styles.segBtn(mode==='live')} onClick={()=>setMode('live')}>Live Route</button>
-              <button style={styles.segBtn(mode==='battle')} onClick={()=>setMode('battle')}>Live Battle</button>
-            </div>
-          )}
-        </div>
         {isLinux && (
           <div className="label-muted" style={{ marginBottom:8 }}>
             Live route tracking is unavailable on Linux.
@@ -5766,426 +3642,70 @@ const marketResults = React.useMemo(() => {
         </div>
 
         {/* Detail Panel (Pokemon) */}
-          {mode==='pokemon' && resolved && !(compareMode && (compareA || compareB)) && (
-             <>
-            <div ref={detailRef} className="grid">
-            {/* Left: Pokemon card */}
-            {(() => {
-              const evMap = {
-                ev_hp: 'HP',
-                ev_attack: 'Atk',
-                ev_defense: 'Def',
-                ev_sp_attack: 'Sp. Atk',
-                ev_sp_defense: 'Sp. Def',
-                ev_speed: 'Spd'
-              };
-              const yields = resolved.yields || {};
-              const evParts = Object.entries(evMap)
-                .filter(([key]) => (yields[key] || 0) > 0)
-                .map(([key, label]) => `${yields[key]} ${label}`);
-              const evText = evParts.length ? evParts.join(', ') : 'None';
-              const rawHeldItems = resolved.heldItems || [];
-              const heldItems = [];
-              const seenHeld = new Set();
-              for (const h of rawHeldItems) {
-                if (!h) continue;
-                const normName = normalizeKey(typeof h === 'string' ? h : h.name || '');
-                const dedupeKey = h.id != null ? `id-${h.id}` : `name-${normName}`;
-                if (seenHeld.has(dedupeKey)) continue;
-                seenHeld.add(dedupeKey);
-                heldItems.push(h);
-              }
-              // Deduplicate abilities while preserving order and keeping blanks for empty slots
-              const rawAbilities = (resolved.abilities || []).map(a => a?.name).filter(Boolean);
-              const abilityNames = [];
-              const seenAbilities = new Set();
-              for (let i = 0; i < 3; i++) {
-                const abilityName = rawAbilities[i];
-                if (abilityName && !seenAbilities.has(abilityName)) {
-                  abilityNames.push(abilityName);
-                  seenAbilities.add(abilityName);
-                } else if (abilityName && seenAbilities.has(abilityName)) {
-                  abilityNames.push(undefined); // Keep slot but make it blank
-                } else {
-                  abilityNames.push(undefined);
-                }
-              }
-              const useCompactAbilities = abilityNames.filter(Boolean).some(a => (a || '').length > 12) || abilityNames.filter(Boolean).join('').length > 28;
-              const renderHeldItem = (h, idx) => {
-                const item = ITEM_INDEX.byId.get(h.id) || ITEM_INDEX.byName.get(normalizeKey(h.name || h));
-                return (
-                  <span key={h.id || h.name || idx} className="profile-held-item">
-                    <img
-                      src={h.id ? `${ITEM_ICON_BASE}${h.id}.png` : ITEM_PLACEHOLDER}
-                      alt={h.name || h}
-                      onError={(e) => {
-                        e.currentTarget.onerror = null;
-                        e.currentTarget.src = ITEM_PLACEHOLDER;
-                        e.currentTarget.style.imageRendering = 'auto';
-                      }}
-                    />
-                    <DelayedTooltip content={item?.description || ''}>
-                      <span className="profile-held-name">{h.name || h}</span>
-                    </DelayedTooltip>
-                  </span>
-                );
-              };
-
-              return (
-                <div style={{ ...styles.card, position:'relative', padding:0, overflow:'hidden' }} className="pokemon-profile-card">
-                  <button
-                    type="button"
-                    className="profile-close-button"
-                    onClick={() => { setSelected(null); setQuery(''); }}
-                    title="Close profile"
-                    aria-label="Close profile"
-                  >
-                    ×
-                  </button>
-                  <div className="profile-hero">
-                    <div className="profile-hero-top">
-                      <div className="profile-hero-actions-left">
-                        <button
-                          type="button"
-                          className={`profile-compare-btn${compareMode ? ' is-active' : ''}`}
-                          aria-pressed={compareMode}
-                          onClick={() => {
-                            setCompareMode(true);
-                            setCompareA(resolved);
-                            setCompareB(null);
-                            setSelected(null);
-                            setQuery('');
-                          }}
-                          title="Compare"
-                        >
-                          Compare
-                        </button>
-                      </div>
-                      <div className="profile-hero-actions-right">
-                        {ALPHA_ID_SET.has(resolved.id) && (
-                          <button
-                            type="button"
-                            className="profile-icon-button"
-                            onClick={() => toggleAlphaCaught(resolved.id)}
-                            title={alphaCaught.has(resolved.id) ? 'Mark Alpha as uncaught' : 'Mark Alpha as caught'}
-                          >
-                            <img src={alphaIconUrl} alt="Alpha Caught" style={{ width:20, height:20, opacity: alphaCaught.has(resolved.id) ? 1 : 0.35 }} />
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          className="profile-icon-button"
-                          onClick={() => toggleCaught(resolved.id)}
-                          title={caught.has(resolved.id) ? 'Mark as uncaught' : 'Mark as caught'}
-                        >
-                          <PokeballIcon filled={caught.has(resolved.id)} />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="profile-hero-main">
-                      <div className="profile-sprite-wrap">
-                        <Sprite mon={selected} size={140} alt={resolved.name} forceShiny={profileShiny} playOnHover />
-                        <button
-                          type="button"
-                          className={`profile-shiny-toggle${profileShiny || shinyGlobal ? ' is-active' : ''}`}
-                          onClick={() => setProfileShiny(v => !v)}
-                          title="Toggle shiny sprite"
-                        >
-                          <svg width="18" height="18" viewBox="0 0 24 24" role="img" aria-label="Shiny">
-                            <polygon
-                              points="12,2 14.9,8.1 22,9 16.8,13.4 18.3,20.4 12,16.9 5.7,20.4 7.2,13.4 2,9 9.1,8.1"
-                              fill={profileShiny || shinyGlobal ? '#d4af37' : '#ffffff'}
-                              stroke={profileShiny || shinyGlobal ? '#9b7d22' : '#888888'}
-                              strokeWidth="1.2"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        </button>
-                      </div>
-                      <div className="profile-hero-info">
-                        <div className="profile-name-row">
-                          <span className="profile-name">{titleCase(resolved.name)}</span>
-                          <span className="profile-dex">#{String(resolved.id).padStart(3,'0')}</span>
-                        </div>
-                        <div className="profile-type-row">
-                          {(resolved.types || []).map((tp, idx) => (
-                            <TypePill
-                              key={`${tp}-${idx}`}
-                              t={tp}
-                              onClick={() => {
-                                setMode('pokemon');
-                                setSelected(null);
-                                setQuery('');
-                                setTypeFilter(normalizeType(tp));
-                                setTypeFilter2('');
-                              }}
-                            />
-                          ))}
-                          {!resolved.types?.length && <span className="label-muted">Unknown</span>}
-                        </div>
-                        <div className="profile-hero-meta-grid">
-                          <div className="profile-meta-item">
-                            <span className="profile-meta-label">Exp</span>
-                            <span className="profile-meta-value">{titleCase((resolved.expType || '').replace(/_/g, ' ')) || '—'}</span>
-                          </div>
-                          <div className="profile-meta-item">
-                            <span className="profile-meta-label">Egg Group</span>
-                            {(() => {
-                              const eggGroups = (resolved.eggGroups || []).filter(Boolean);
-                              const eggGroupText = eggGroups.map(titleCase).join(' / ');
-                              return (
-                                <span className={`profile-meta-value${eggGroupText ? '' : ' label-muted'}`}>
-                                  {eggGroupText || 'None'}
-                                </span>
-                              );
-                            })()}
-                          </div>
-                          <div className="profile-meta-item">
-                            <span className="profile-meta-label">Height</span>
-                            <span className="profile-meta-value">{formatHeight(resolved.height)}</span>
-                          </div>
-                          <div className="profile-meta-item">
-                            <span className="profile-meta-label">Weight</span>
-                            <span className="profile-meta-value">{formatWeight(resolved.weight)}</span>
-                          </div>
-                          <div className="profile-meta-item">
-                            <span className="profile-meta-label">Gender</span>
-                            <span className="profile-meta-value">{formatGenderRatio(resolved.genderRatio)}</span>
-                          </div>
-                          <div className="profile-meta-item">
-                            <span className="profile-meta-label">Obtainable</span>
-                            <span className="profile-meta-value">{resolved.obtainable ? 'Yes' : 'No'}</span>
-                          </div>
-                        </div>
-                        {resolved.forms?.length > 1 && (
-                          <div className="profile-forms-row">
-                            <span className="profile-forms-label">Forms</span>
-                            <div className="profile-forms-list">
-                              {resolved.forms.map(f => (
-                                <span key={f.form_id || f.id} className="profile-form-pill">{f.name}</span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="profile-body">
-                    <div className="profile-column-left">
-                      <div className="profile-section-card">
-                        <div className="profile-section-header">
-                          <span className="profile-section-title">Base Stats</span>
-                        </div>
-                        <StatsRow
-                          mon={resolved}
-                          override={singleOverride}
-                          underlineKeys={singleUnderline}
-                          build={singleBuild}
-                          onSetIV={singleSetters.onSetIV}
-                          onSetEV={singleSetters.onSetEV}
-                          onSetLevel={singleSetters.onSetLevel}
-                          natureEl={<NatureSelect natureList={natureList} value={singleBuild.nature} onChange={(v)=> setSingleBuild(prev=> ({...prev, nature:v}))} />}
-                        />
-                      </div>
-                      <div className="profile-section-card">
-                        <div className="profile-section-title">Type Matchups</div>
-                        {(() => {
-                          const blocks = [
-                            { title: '4x Weak', list: resolved.weakness.x4 || [] },
-                            { title: '2x Weak', list: resolved.weakness.x2 || [] },
-                            { title: '0.5x Resist', list: resolved.weakness.x0_5 || [] },
-                            { title: '0.25x Resist', list: resolved.weakness.x0_25 || [] },
-                            { title: '0x Immune', list: resolved.weakness.x0 || [] },
-                          ].filter(b => (b.list?.length || 0) > 0);
-                          if (!blocks.length) {
-                            return <div className="label-muted">No notable matchups.</div>;
-                          }
-                          const compact = blocks.length === 5;
-                          return (
-                            <div className={`profile-matchups-grid${compact ? ' is-compact' : ''}`}>
-                              {blocks.map((b, i) => (
-                                <div key={`${b.title}-${i}`} className="profile-matchup-card">
-                                  <span className="profile-matchup-title">{b.title}</span>
-                                  <div className="profile-matchup-types">
-                                    {b.list.map((t) => (
-                                      <TypePill key={`${b.title}-${t}`} t={t} compact={compact} />
-                                    ))}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                      <div className="profile-section-card">
-                        <EvolutionChain mon={resolved} onSelect={(m)=>{ setSelected(m); setShowSmogonSets(false); setShowMoveset(false); }} showTitle={false} />
-                      </div>
-                    </div>
-                    <div className="profile-column-right">
-                      <div className="profile-section-card">
-                        <div className="profile-section-title">Abilities</div>
-                        <div className="profile-ability-list">
-                          {[0,1,2].map((i) => (
-                            <AbilityPill key={`ability-${i}`} label={i === 2 ? 'Hidden' : `${i + 1}`} name={abilityNames[i]} compact={useCompactAbilities} />
-                          ))}
-                          {!abilityNames.length && <span className="label-muted">None</span>}
-                        </div>
-                      </div>
-                      <div className="profile-section-card">
-                        <div className="profile-section-title">Held Items</div>
-                        <div className="profile-held-list">
-                          {heldItems.length ? heldItems.map(renderHeldItem) : (
-                            <span className="label-muted">None</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="profile-section-card">
-                        <div className="profile-section-title">Misc</div>
-                        <div className="profile-metric-grid">
-                          <div className="profile-metric-item profile-metric-item--ev">
-                            <span className="profile-metric-label">EV Yield</span>
-                            <span className="profile-metric-value">{evText}</span>
-                          </div>
-                          <div className="profile-metric-item profile-metric-item--catch-rate">
-                            <span className="profile-metric-label">Catch Rate</span>
-                            <span className="profile-metric-value">{resolved.catchRate ?? 'N/A'}</span>
-                          </div>
-                          <div className="profile-metric-item profile-metric-item--catch">
-                            <div className="profile-metric-catch-header">
-                              <span className="profile-metric-label">Catch %</span>
-                              <BallSelect value={selectedBallKey} onChange={setSelectedBallKey} />
-                            </div>
-                            <div className="profile-metric-catch-display">
-                              <span className="profile-metric-value profile-metric-value--catch">
-                                {catchPercent != null ? `${catchPercent.toFixed(1)}%` : 'N/A'}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="profile-metric-item profile-metric-item--status">
-                            <span className="profile-metric-label">Catch Mods</span>
-                            <div className="profile-status-grid">
-                              <button
-                                type="button"
-                                className={`profile-chip-button${isOneHp ? ' is-active danger' : ''}`}
-                                onClick={() => setIsOneHp(v => !v)}
-                              >
-                                1 HP
-                              </button>
-                              {STATUS_EFFECT_BUTTONS.map(({ key, label }) => (
-                                <button
-                                  key={key}
-                                  type="button"
-                                  className={`profile-chip-button${statusEffect === key ? ' is-active' : ''}`}
-                                  onClick={() => toggleStatusEffect(key)}
-                                >
-                                  {label}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-            {/* Right: Locations */}
-            <div style={{ ...styles.card, marginTop:16 }}>
-             <div
-                className="label-muted"
-                style={{ fontWeight:700, cursor:'pointer', marginBottom: showLocations ? 6 : 0 }}
-                onClick={() => setShowLocations(v => !v)}
-              >
-                {showLocations ? '▾' : '▸'} Locations
-              </div>
-              {showLocations && (
-                <>
-                  {byRegion.length === 0 && (<div className="label-muted">No wild locations found.</div>)}
-                  {byRegion.map(([reg, list]) => (
-                    <div key={reg} style={{ marginBottom:12 }}>
-                      <div style={{ fontWeight:800, marginBottom:6 }}>{reg}</div>
-                      <div style={{ display:'grid', gap:8 }}>
-                        {list.map((loc, i) => (
-                          <div
-                            key={i}
-                            style={{ border:'1px solid var(--divider)', borderRadius:10, padding:'8px 10px', background:'var(--surface)', cursor:'pointer' }}
-                              onClick={() => {
-                                setMode('areas');
-                                setAreaRegion(reg);
-                                // Remove any parenthetical notes from the location name
-                                setAreaQuery(loc.map.replace(/\s*\([^)]*\)/g, '').trim());
-                                setShowLocations(false);
-                                window.scrollTo({ top: 0, behavior: 'smooth' });
-                              }}
-                            >
-                            <div style={{ fontWeight:700 }}>{loc.map}</div>
-                            {(loc.min || loc.max) && (
-                              <div className="label-muted" style={{ marginTop:4 }}>
-                                {loc.min && loc.max ? `Lv ${loc.min}-${loc.max}` : `Lv ${loc.min || loc.max}`}
-                              </div>
-                            )}
-                            <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginTop:4 }}>
-                              {(Array.isArray(loc.method) ? loc.method : [loc.method])
-                                .filter(Boolean)
-                                .map((m, j) => <MethodPill key={`m-${i}-${j}-${m}`} method={m} />)}
-                              {!(Array.isArray(loc.method) ? loc.method : [loc.method])
-                                .some(m => /lure/i.test(m || '')) &&
-                                (Array.isArray(loc.rarity) ? loc.rarity : [loc.rarity])
-                                  .filter(Boolean)
-                                  .map((r, j) => <RarityPill key={`r-${i}-${j}-${r}`} rarity={r} hordeSize={loc.hordeSize} />)}
-                            </div>
-                          </div>
-                        ))}
-                  </div>
-                </div>
-                  ))}
-                </>
-              )}
-        </div>
-          </div>
-
-          <div style={{ ...styles.card, marginTop:16 }}>
-            <RecommendedMovesets
-              speciesName={resolved?.name}
-              expanded={showSmogonSets}
-              onToggle={() => setShowSmogonSets(v => !v)}
+        {mode==='pokemon' && resolved && !(compareMode && (compareA || compareB)) && (
+          <div ref={detailRef}>
+            <PokemonProfile
+              key={resolved.id ?? resolved.name}
+              mon={resolved}
+              spriteMon={selected}
+              caught={{ isCaught: caught.has(resolved.id), toggle: () => toggleCaught(resolved.id) }}
+              alpha={{
+                eligible: ALPHA_ID_SET.has(resolved.id),
+                isCaught: alphaCaught.has(resolved.id),
+                toggle: () => toggleAlphaCaught(resolved.id),
+              }}
+              shiny={{ on: profileShiny || shinyGlobal, toggle: () => setProfileShiny(v => !v) }}
+              build={{
+                value: singleBuild,
+                set: setSingleBuild,
+                override: singleOverride,
+                underline: singleUnderline,
+                setters: singleSetters,
+                natureList,
+              }}
+              catchInfo={{
+                ballKey: selectedBallKey,
+                setBallKey: setSelectedBallKey,
+                percent: catchPercent,
+                oneHp: isOneHp,
+                setOneHp: setIsOneHp,
+                status: statusEffect,
+                toggleStatus: toggleStatusEffect,
+              }}
+              locations={byRegion}
+              onClose={() => { setSelected(null); setQuery(''); }}
+              onCompare={() => {
+                setCompareMode(true);
+                setCompareA(resolved);
+                setCompareB(null);
+                setSelected(null);
+                setQuery('');
+              }}
+              onTypeClick={(tp) => {
+                setMode('pokemon');
+                setSelected(null);
+                setQuery('');
+                setTypeFilter(normalizeType(tp));
+                setTypeFilter2('');
+              }}
+              onSelectMon={setSelected}
+              onOpenArea={(region, mapName) => {
+                setMode('areas');
+                setAreaRegion(region);
+                // Remove any parenthetical notes from the location name
+                setAreaQuery(mapName.replace(/\s*\([^)]*\)/g, '').trim());
+                // The shell's main area scrolls, not the window.
+                document.querySelector('.shell-main')?.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
             />
           </div>
-          {MOVE_METHODS.some(m => (resolved.moves?.[m.key] || []).length) && (
-            <div style={{ ...styles.card, marginTop:16 }}>
-              <div
-                className="label-muted"
-                style={{ fontWeight:700, cursor:'pointer', marginBottom: showMoveset ? 6 : 0 }}
-                onClick={() => setShowMoveset(v => !v)}
-              >
-                {showMoveset ? '▾' : '▸'} Moves
-              </div>
-              {showMoveset && (
-                <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                  {MOVE_METHODS.map(m => (
-                    <MovesTable
-                      key={m.key}
-                      title={m.label}
-                      moves={resolved.moves[m.key] || []}
-                      showLevel={m.key === 'lv'}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-          </>
         )}
       </div>
-      )}
-      
+      </AppShell>
+
       {showTypeChart && (
         <div
-          onClick={() => {
-            setShowTypeChart(false);
-            setMode('pokemon');
-          }}
+          onClick={() => setShowTypeChart(false)}
           style={{
             position:'fixed',
             top:0,
@@ -6278,22 +3798,6 @@ const marketResults = React.useMemo(() => {
         </div>
       )}
 
-      {/* Fixed controls */}
-      <div
-        style={{
-          position:'fixed',
-          left:12,
-          bottom:10,
-          display:'flex',
-          gap:8,
-          zIndex:10000
-        }}
-      >
-        <ThemeButton theme={theme} setTheme={setTheme} />
-        <SponsorButton />
-      </div>
-      <FeedbackButton />
-      <VersionBadge />
       {/* Catch notifications */}
       {catchNotifications.map((notification) => (
         <CatchNotification
@@ -6313,8 +3817,3 @@ const marketResults = React.useMemo(() => {
 }
 
 export default App;
-
-
-
-
-
