@@ -1249,12 +1249,12 @@ partial class LiveRouteOCR
         if (h == IntPtr.Zero) return false;
 
         var cls = GetClass(h);
-        if (!cls.StartsWith("GLFW", StringComparison.OrdinalIgnoreCase))
+        if (!IsGameWindowClass(cls))
             return false;
 
         // Prefer title heuristics when possible
         var title = GetTitle(h).Trim();
-        var normTitle = RemoveDiacritics(title);
+        var normTitle = NormalizeTitle(title);
         if (System.Text.RegularExpressions.Regex.IsMatch(normTitle, "^pok.*mmo$",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase))
                 return true;
@@ -1321,6 +1321,31 @@ partial class LiveRouteOCR
         return LinuxCaptureRegion(hWnd, origin, rect, target);
 #endif
     }
+
+    // The PokeMMO client window used GLFW ("GLFW30"); current clients use SDL ("SDL_app").
+    static bool IsGameWindowClass(string? cls) =>
+        !string.IsNullOrEmpty(cls) &&
+        (cls.StartsWith("GLFW", StringComparison.OrdinalIgnoreCase) ||
+         cls.StartsWith("SDL", StringComparison.OrdinalIgnoreCase));
+
+    // Current clients title the window with Cyrillic look-alikes ("РokеМMO": U+0420, U+0435, U+041C),
+    // so fold those to Latin before matching on the title.
+    static string NormalizeTitle(string text)
+    {
+        var s = RemoveDiacritics(text ?? "");
+        var sb = new StringBuilder(s.Length);
+        foreach (var c in s) sb.Append(FoldHomoglyph(c));
+        return sb.ToString();
+    }
+
+    static char FoldHomoglyph(char c) => c switch
+    {
+        'А' => 'A', 'В' => 'B', 'Е' => 'E', 'К' => 'K', 'М' => 'M', 'Н' => 'H', 'О' => 'O',
+        'Р' => 'P', 'С' => 'C', 'Т' => 'T', 'Х' => 'X',
+        'а' => 'a', 'е' => 'e', 'к' => 'k', 'м' => 'm', 'о' => 'o', 'р' => 'p', 'с' => 'c',
+        'т' => 't', 'у' => 'y', 'х' => 'x',
+        _ => c,
+    };
 
     static string RemoveDiacritics(string text)
     {
