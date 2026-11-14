@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { UI_SCALE_EVENT } from "../lib/uiScale.js";
+import { announceOcrDebug } from "../lib/ocrDebug.js";
 
 const OCR_AGGRESSIVENESS_OPTIONS = [
   { value: 'fast', label: 'Fast' },
@@ -520,14 +521,15 @@ export default function OptionsMenu({ style = {}, ocrSupported = false, variant 
     setOcrImageDebug(next);
     setSettingImageDebug(true);
     try {
-      show(next ? 'Enabling OCR image debug…' : 'Disabling OCR image debug…', 'info');
+      show(next ? 'Turning on OCR debug…' : 'Turning off OCR debug…', 'info');
       const res = await window.app?.setOcrImageDebug?.(next);
       if (!res || res.ok === false) throw new Error(res?.error || 'IPC unavailable');
-      show(next ? 'OCR image debug enabled.' : 'OCR image debug disabled.', 'success');
+      announceOcrDebug(next);
+      show(next ? 'OCR debug on: captures are saved and live screens show confidence.' : 'OCR debug off.', 'success');
     } catch (err) {
       console.error('[OptionsMenu] toggle OCR image debug error:', err);
       setOcrImageDebug(prev);
-      show('Failed to update OCR image debug', 'error');
+      show('Failed to update OCR debug', 'error');
     } finally {
       setSettingImageDebug(false);
     }
@@ -901,7 +903,7 @@ export default function OptionsMenu({ style = {}, ocrSupported = false, variant 
               style={ocrTopToggleStyle}
             />
             <ToggleButton
-              label="OCR Image Debug"
+              label="OCR Debug"
               value={ocrImageDebug}
               onToggle={onToggleOcrImageDebug}
               disabled={settingImageDebug}
@@ -950,7 +952,7 @@ export default function OptionsMenu({ style = {}, ocrSupported = false, variant 
                     <span style={previewPlaceholderStyle}>Waiting for capture…</span>
                   )
                 ) : (
-                  <span style={previewPlaceholderStyle}>Enable OCR Image Debug for Preview</span>
+                  <span style={previewPlaceholderStyle}>Turn on OCR Debug to see a preview</span>
                 )}
               </div>
               <div style={dpadWrapperStyle}>
@@ -1020,7 +1022,7 @@ export default function OptionsMenu({ style = {}, ocrSupported = false, variant 
               </div>
               <span style={previewDetailStyle}>
                 <span style={previewDetailLabel}>Detected Route:</span>{' '}
-                {ocrImageDebug ? (previewData.routeDetected || 'No Route') : 'Enable OCR Image Debug for details'}
+                {ocrImageDebug ? (previewData.routeDetected || 'No Route') : 'Turn on OCR Debug for details'}
               </span>
             </div>
             <div style={{ width: 2, background: 'var(--divider)', borderRadius: 999 }} />
@@ -1034,7 +1036,7 @@ export default function OptionsMenu({ style = {}, ocrSupported = false, variant 
                     <span style={previewPlaceholderStyle}>Waiting for capture…</span>
                   )
                 ) : (
-                  <span style={previewPlaceholderStyle}>Enable OCR Image Debug for Preview</span>
+                  <span style={previewPlaceholderStyle}>Turn on OCR Debug to see a preview</span>
                 )}
               </div>
               <div style={dpadWrapperStyle}>
@@ -1104,7 +1106,7 @@ export default function OptionsMenu({ style = {}, ocrSupported = false, variant 
               </div>
               <span style={previewDetailStyle}>
                 <span style={previewDetailLabel}>Detected Pokemon:</span>{' '}
-                {ocrImageDebug ? (previewData.battleDetected || 'No Pokemon') : 'Enable OCR Image Debug for details'}
+                {ocrImageDebug ? (previewData.battleDetected || 'No Pokemon') : 'Turn on OCR Debug for details'}
               </span>
             </div>
           </div>

@@ -52,6 +52,7 @@ import MethodPill from './components/pokemon/MethodPill.jsx';
 import RarityPill from './components/pokemon/RarityPill.jsx';
 import DelayedTooltip from './components/pokemon/DelayedTooltip.jsx';
 import PokeballIcon from './components/pokemon/PokeballIcon.jsx';
+import { useOcrDebug } from './lib/ocrDebug.js';
 
 const TM_URL        = `${import.meta.env.BASE_URL}data/tm_locations.json`;
 const APP_TITLE = "3's PokeMMO Tool";
@@ -63,8 +64,6 @@ const HORDE_SIZE_MAP = buildHordeSizeMap(hordeRegions);
 
 // Alpha species membership set by Dex ID (defined after DEX indices)
 
-// Optional override in .env: VITE_SHOW_CONFIDENCE=1 (set to 0 to hide confidence)
-const SHOW_CONFIDENCE = (import.meta?.env?.VITE_SHOW_CONFIDENCE ?? '1') === '1';
 function formatConfidence(c){
   if (c == null || isNaN(c)) return null;
   const num = Number(c);
@@ -937,6 +936,7 @@ function LiveRoutePanel({ areasIndex, locIndex, onViewMon }){
 
   const [rawText, setRawText] = useState(lastRoute.rawText || '');
   const [confidence, setConfidence] = useState(lastRoute.confidence ?? null);
+  const showConfidence = useOcrDebug();
   const [displayMap, setDisplayMap] = useState(lastRoute.displayMap || null);
   const [region, setRegion] = useState(lastRoute.region || null);
   const [entries, setEntries] = useState([]);
@@ -1186,7 +1186,7 @@ function LiveRoutePanel({ areasIndex, locIndex, onViewMon }){
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline' }}>
         <div className="label-muted">
           Live Location: <span style={{ fontWeight:800 }}>{stripTimeTag(rawText || '—')}</span>
-          {SHOW_CONFIDENCE && (confPct !== null) && (
+          {showConfidence && (confPct !== null) && (
             <span className="text-slate-400 ml-2">({confPct}% Confidence)</span>
           )}
         </div>
@@ -1373,6 +1373,7 @@ function LiveBattlePanel({ onViewMon, onCompare }){
   const [ocrEnabled, setOcrEnabled] = useState(isOcrEnabled);
   const [rawText, setRawText] = useState('');
   const [confidence, setConfidence] = useState(null);
+  const showConfidence = useOcrDebug();
   const [mons, setMons] = useState([]);
   const [connected, setConnected] = useState(false);
   const [isStale, setIsStale] = useState(false);
@@ -1558,7 +1559,7 @@ function LiveBattlePanel({ onViewMon, onCompare }){
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline' }}>
         <div className="label-muted">
           Live Battle: <span style={{ fontWeight:800, whiteSpace:'pre-line' }}>{nameText}</span>
-          {SHOW_CONFIDENCE && (confPct !== null) && (
+          {showConfidence && (confPct !== null) && (
             <span className="text-slate-400 ml-2">({confPct}% Confidence)</span>
           )}
         </div>
