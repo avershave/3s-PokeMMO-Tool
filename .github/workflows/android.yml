@@ -147,3 +147,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ env.APK_PATH }}
+          # The desktop auto-updater reads the "Latest" release, so APK releases must not take it.
+          make_latest: false
