@@ -49,3 +49,8 @@ export function visibleGroups({ ocrSupported }) {
 export function isItemActive(item, mode) {
   return item.action === undefined && item.mode === mode;
 }
+
+// Ask the matching dex window (caught, alpha, event, shiny) to open itself.
+export function openDex(dex) {
+  window.dispatchEvent(new CustomEvent('open-dex', { detail: { dex } }));
+}
