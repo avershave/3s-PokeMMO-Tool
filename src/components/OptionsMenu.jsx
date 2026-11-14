@@ -43,7 +43,7 @@ function clampOcrZoomValue(value, fallback = 0.5) {
  *  - Reload OCR (Windows & Linux) → restarts helper AND signals Live tab to reconnect/clear
  *  - Refresh app       → full renderer refresh
  */
-export default function OptionsMenu({ style = {}, ocrSupported = false }) {
+export default function OptionsMenu({ style = {}, ocrSupported = false, variant }) {
   const [open, setOpen] = useState(false);
   const [toast, setToast] = useState(null); // { text, kind } | null
   const menuRef = useRef(null);
@@ -1112,15 +1112,27 @@ export default function OptionsMenu({ style = {}, ocrSupported = false }) {
 
   return (
     <div ref={menuRef} style={{ position: 'relative', ...style }}>
-      <button
-        style={btnStyle}
-        onClick={() => setOpen((v) => !v)}
-        title="Options"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-      >
-        Options ▾
-      </button>
+      {variant === 'sidebar' ? (
+        <button
+          type="button"
+          className="shell-row"
+          onClick={() => setOpen((v) => !v)}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+        >
+          Options
+        </button>
+      ) : (
+        <button
+          style={btnStyle}
+          onClick={() => setOpen((v) => !v)}
+          title="Options"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+        >
+          Options ▾
+        </button>
+      )}
 
       {open && (
         <div style={overlayStyle} onClick={() => setOpen(false)}>

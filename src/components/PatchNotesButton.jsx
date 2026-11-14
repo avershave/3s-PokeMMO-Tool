@@ -6,7 +6,7 @@ export function openPatchNotes() {
   window.dispatchEvent(new Event('patchnotes:open'));
 }
 
-export default function PatchNotesButton() {
+export default function PatchNotesButton({ variant }) {
   const [open, setOpen] = useState(false);
   const html = useMemo(() => marked.parse(changelog), []);
   useEffect(() => {
@@ -66,9 +66,15 @@ export default function PatchNotesButton() {
 
   return (
     <>
-      <button style={btnStyle} onClick={openPatchNotes} title="Patch Notes">
-        Patch Notes
-      </button>
+      {variant === 'sidebar' ? (
+        <button type="button" className="shell-row" onClick={openPatchNotes}>
+          Patch notes
+        </button>
+      ) : (
+        <button style={btnStyle} onClick={openPatchNotes} title="Patch Notes">
+          Patch Notes
+        </button>
+      )}
       {open && (
         <div style={overlayStyle} onClick={() => setOpen(false)}>
           <div style={modalStyle} onClick={e => e.stopPropagation()}>

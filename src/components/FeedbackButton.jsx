@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
-export default function FeedbackButton() {
+export default function FeedbackButton({ variant }) {
+  const sidebar = variant === 'sidebar';
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -42,11 +43,18 @@ export default function FeedbackButton() {
     textAlign: 'center'
   };
 
+  // Beside the sidebar instead of the bottom-right corner.
+  const sidebarWindowStyle = { ...windowStyle, right: 'auto', left: 212, bottom: 12 };
+
   return (
     <div ref={ref}>
-      <button style={btnStyle} onClick={() => setOpen(v => !v)}>Feedback</button>
+      {sidebar ? (
+        <button type="button" className="shell-row" onClick={() => setOpen(v => !v)}>Feedback</button>
+      ) : (
+        <button style={btnStyle} onClick={() => setOpen(v => !v)}>Feedback</button>
+      )}
       {open && (
-        <div style={windowStyle}>
+        <div style={sidebar ? sidebarWindowStyle : windowStyle}>
           Find a bug or want a feature added? Any feedback is greatly appreciated! You can message me on Discord @ bkummer3
         </div>
       )}

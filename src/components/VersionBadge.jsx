@@ -1,7 +1,7 @@
 // src/components/VersionBadge.jsx
 import { useEffect, useState } from "react";
 
-export default function VersionBadge() {
+export default function VersionBadge({ variant }) {
   const [ver, setVer] = useState("");
 
   useEffect(() => {
@@ -18,6 +18,8 @@ export default function VersionBadge() {
   }, []);
 
   if (!ver) return null;
+
+  if (variant === "sidebar") return <div className="shell-version">v{ver}</div>;
 
   return (
     <div style={{
