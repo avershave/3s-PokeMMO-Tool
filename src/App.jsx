@@ -3,18 +3,15 @@ import './index.css';
 import dexRaw from '../UpdatedDex.json';
 import itemsRaw from '../itemdata.json';
 import catchRates from '../data/catch-rates.json';
-import VersionBadge from "./components/VersionBadge.jsx";
-import OptionsMenu from './components/OptionsMenu.jsx';
-import PatchNotesButton, { openPatchNotes } from './components/PatchNotesButton.jsx';
+import { openPatchNotes } from './components/PatchNotesButton.jsx';
 import ColorPickerButton from './components/ColorPickerButton.jsx';
 import CaughtListButton from './components/CaughtListButton.jsx';
 import AlphaDexButton from './components/AlphaDexButton.jsx';
 import EventDexButton from './components/EventDexButton.jsx';
 import ShinyDexButton from './components/ShinyDexButton.jsx';
-import SponsorButton from './components/SponsorButton.jsx';
-import FeedbackButton from './components/FeedbackButton.jsx';
 import SearchFilter from './components/SearchFilter.jsx';
-import HomeScreen from './components/HomeScreen.jsx';
+import AppShell from './components/shell/AppShell.jsx';
+import { DEFAULT_MODE, openDex } from './lib/nav.js';
 import CatchNotification from './components/CatchNotification.jsx';
 import { ColorContext, DEFAULT_METHOD_COLORS, DEFAULT_RARITY_COLORS } from './colorConfig.js';
 import { CaughtContext } from './caughtContext.js';
@@ -88,12 +85,6 @@ const TRANSPARENT_PNG =
 
 /* ---------- small style helpers ---------- */
 const styles = {
-  segWrap: { display:'inline-flex', border:'1px solid var(--divider)', background:'var(--surface)', borderRadius:999, padding:4, gap:4 },
-  segBtn(active){ return {
-    appearance:'none', border:0, padding:'8px 14px', borderRadius:999, fontWeight:700, cursor:'pointer',
-    transition:'all .15s ease', background: active?'var(--card)':'transparent',
-    color: active?'var(--text)':'var(--muted)', boxShadow: active?'inset 0 0 0 1px var(--divider), 0 4px 18px rgba(0,0,0,.35)':'none'
-  };},
   card: { padding:16, borderRadius:12, border:'1px solid var(--divider)', background:'var(--surface)' },
   areaCard: { padding:12, borderRadius:12, border:'1px solid var(--divider)', background:'var(--surface)' },
   gridCols: { display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))', gap:10 },
@@ -3912,11 +3903,18 @@ function App(){
   const searchClearIntentRef = useRef(false);
   const [showRegionMenu, setShowRegionMenu] = useState(false);
   const [selected, setSelected] = useState(null);
-  const [mode, setMode]         = useState('pokemon'); // 'pokemon' | 'areas' | 'horde' | 'tm' | 'items' | 'breeding' | 'daycare' | 'team' | 'live' | 'battle' | 'market'
-  const [toolsOpen, setToolsOpen] = useState(false);
+  const [mode, setMode]         = useState(DEFAULT_MODE); // 'pokemon' | 'areas' | 'horde' | 'tm' | 'items' | 'breeding' | 'daycare' | 'team' | 'live' | 'battle' | 'market'
 
   const [showTypeChart, setShowTypeChart] = useState(false);
   const [showResources, setShowResources] = useState(false);
+
+  // Sidebar action items (dex windows, type chart, resources) run a side
+  // effect instead of switching mode.
+  const handleNavAction = (item) => {
+    if (item.action === 'open-dex') openDex(item.dex);
+    else if (item.action === 'type-chart') setShowTypeChart(true);
+    else if (item.action === 'resources') setShowResources(true);
+  };
 
   // Compare mode state for Pokemon Search
   const [compareMode, setCompareMode] = useState(false);
@@ -3929,16 +3927,6 @@ function App(){
       setCompareMode(false);
       setCompareA(null);
       setCompareB(null);
-    }
-  }, [mode]);
-
-  useEffect(() => { setToolsOpen(false); }, [mode]);
-
-  // Handle resources mode
-  useEffect(() => {
-    if (mode === 'resources') {
-      setShowResources(true);
-      setMode('home'); // Return to home after opening resources
     }
   }, [mode]);
 
@@ -4035,9 +4023,23 @@ function App(){
 
   const [showUpToDate, setShowUpToDate] = useState(false);
 
+  // OCR toggle from Options. Keep both live clients in step even when their
+  // page isn't open, so the sidebar live status recovers when OCR comes back.
+  const [ocrEnabled, setOcrEnabled] = useState(isOcrEnabled());
   useEffect(() => {
-    if (!ocrSupported && mode === 'live') setMode('pokemon');
-  }, [ocrSupported, mode]);
+    const onChange = (e) => {
+      const en = !!(e?.detail?.enabled ?? isOcrEnabled());
+      setOcrEnabled(en);
+      try { liveRouteClient.setEnabled(en); } catch {}
+      try { liveBattleClient.setEnabled(en); } catch {}
+    };
+    window.addEventListener('ocr-enabled-changed', onChange);
+    return () => window.removeEventListener('ocr-enabled-changed', onChange);
+  }, []);
+
+  useEffect(() => {
+    if ((!ocrSupported || !ocrEnabled) && (mode === 'live' || mode === 'battle')) setMode(DEFAULT_MODE);
+  }, [ocrSupported, ocrEnabled, mode]);
 
   useEffect(() => {
     liveBattleClient.connect();
@@ -4190,17 +4192,7 @@ function App(){
 
   const hasFilters = Boolean(typeFilter || typeFilter2 || eggFilter || abilityFilter || regionFilter || moveFilter || itemFilter);
 
-  const headerSprite = useMemo(() => {
-    const opt = { shiny: !!shinyGlobal };
-    // Exclude Pokemon with ID >= 650 (Event Pokemon with placeholder images)
-    const withSprite = DEX_LIST.filter(d => {
-      if (d?.id != null && d.id >= 650) return false;
-      return spriteSources(d, opt).length > 0;
-    });
-    return withSprite.length ? spriteSources(withSprite[Math.floor(Math.random()*withSprite.length)], opt)[0] : null;
-  }, [shinyGlobal]);
   useEffect(() => { document.title = APP_TITLE; }, []);
-  const headerSrc = headerSprite || TRANSPARENT_PNG;
 
   useEffect(() => {
     setShowRegionMenu(false);
@@ -4698,22 +4690,13 @@ const marketResults = React.useMemo(() => {
     <ShinyCaughtContext.Provider value={{ shinyCaught, addShinyEntry, updateShinyEntry, removeShinyEntry }}>
     <ColorContext.Provider value={{ methodColors, rarityColors, setMethodColors, setRarityColors }}>
       <>
-      {/* App-wide overlay controls (top-right) */}
-      <div style={{ position:'fixed', top:10, right:12, zIndex:9999, display:'flex', gap:8 }}>
-        <PatchNotesButton />
-        <OptionsMenu ocrSupported={ocrSupported} />
-      </div>
       {/* Mount the color picker without a visible trigger so Options menu can open it */}
       <ColorPickerButton renderTrigger={false} />
-      {/* Top-center actions (full-width container ignores pointer events; inner wrapper handles clicks) */}
-      <div style={{ position:'fixed', top:10, left:0, right:0, zIndex:9999, display:'flex', justifyContent:'center', pointerEvents:'none' }}>
-        <div style={{ display:'inline-flex', gap:8, pointerEvents:'auto' }}>
-          <CaughtListButton />
-          <AlphaDexButton />
-          <EventDexButton />
-          <ShinyDexButton />
-        </div>
-      </div>
+      {/* Dex windows have no trigger here; the sidebar opens them via openDex */}
+      <CaughtListButton renderTrigger={false} />
+      <AlphaDexButton renderTrigger={false} />
+      <EventDexButton renderTrigger={false} />
+      <ShinyDexButton renderTrigger={false} />
 
 {showUpToDate && (
         <div
@@ -4737,65 +4720,17 @@ const marketResults = React.useMemo(() => {
         </div>
       )}
 
-{mode === 'home' ? (
-        <HomeScreen setMode={setMode} supportsLive={ocrSupported} />
-      ) : (
+      <AppShell
+        mode={mode}
+        onNavigate={setMode}
+        onAction={handleNavAction}
+        ocrSupported={ocrSupported}
+        ocrEnabled={ocrEnabled}
+        onOpenLive={() => setMode('live')}
+      >
       <div className="container">
-        {/* Header */}
-        <div className="header" style={{ alignItems:'center', cursor:'pointer' }} onClick={()=>setMode('home')}>
-          <img src={headerSrc} alt="" style={{ width:56, height:56, objectFit:'contain', imageRendering:'pixelated' }} />
-          <h1 style={{ marginLeft:8 }}>3&apos;s PokeMMO Tool</h1>
-        </div>
-
         {/* Search / Mode Card */}
         <div style={{ ...styles.card, marginBottom:16 }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-            <div style={styles.segWrap}>
-              <button style={styles.segBtn(mode==='pokemon')} onClick={()=>setMode('pokemon')}>Pokemon Search</button>
-              <button style={styles.segBtn(mode==='areas')} onClick={()=>setMode('areas')}>Area Search</button>
-              <button style={styles.segBtn(mode==='horde')} onClick={()=>setMode('horde')}>Horde Search</button>
-              <button style={styles.segBtn(mode==='tm')} onClick={()=>setMode('tm')}>TM Locations</button>
-              <button style={styles.segBtn(mode==='team')} onClick={()=>setMode('team')}>Team Builder</button>
-              <div style={{ position:'relative' }}>
-                <button style={styles.segBtn(mode==='items' || mode==='breeding' || mode==='daycare' || mode==='market')} onClick={()=>setToolsOpen(v=>!v)}>
-                  Tools {toolsOpen ? '▴' : '▾'}
-                </button>
-                {toolsOpen && (
-                  <div style={{ position:'absolute', top:'100%', right:0, background:'var(--surface)', border:'1px solid var(--divider)', borderRadius:8, display:'flex', flexDirection:'column', zIndex:10, overflow:'hidden' }}>
-                    <button style={{ ...styles.segBtn(mode==='items'), width:'100%', borderRadius:0 }} onClick={()=>setMode('items')}>Items</button>
-                    <div style={{ height:1, background:'var(--divider)', opacity:0.4 }} />
-                    <button style={{ ...styles.segBtn(mode==='breeding'), width:'100%', borderRadius:0 }} onClick={()=>setMode('breeding')}>Breeding</button>
-                    <div style={{ height:1, background:'var(--divider)', opacity:0.4 }} />
-                    <button style={{ ...styles.segBtn(mode==='daycare'), width:'100%', borderRadius:0 }} onClick={()=>setMode('daycare')}>Daycare Manager</button>
-                    <div style={{ height:1, background:'var(--divider)', opacity:0.4 }} />
-                    <button style={{ ...styles.segBtn(mode==='market'), width:'100%', borderRadius:0 }} onClick={()=>setMode('market')}>Market</button>
-                    <div style={{ height:1, background:'var(--divider)', opacity:0.4 }} />
-                    <button
-                      style={{ ...styles.segBtn(false), width:'100%', borderRadius:0 }}
-                      onClick={()=>{ setShowTypeChart(true); setToolsOpen(false); }}
-                    >
-                      Type Chart
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-            {/* Resources button */}
-            <div style={{ ...styles.segWrap, margin: '0 auto' }}>
-              <button
-                style={styles.segBtn(false)}
-                onClick={() => setShowResources(true)}
-              >
-                📚 Resources
-              </button>
-            </div>
-          {ocrSupported && (
-            <div style={styles.segWrap}>
-              <button style={styles.segBtn(mode==='live')} onClick={()=>setMode('live')}>Live Route</button>
-              <button style={styles.segBtn(mode==='battle')} onClick={()=>setMode('battle')}>Live Battle</button>
-            </div>
-          )}
-        </div>
         {isLinux && (
           <div className="label-muted" style={{ marginBottom:8 }}>
             Live route tracking is unavailable on Linux.
@@ -5940,7 +5875,8 @@ const marketResults = React.useMemo(() => {
                                 // Remove any parenthetical notes from the location name
                                 setAreaQuery(loc.map.replace(/\s*\([^)]*\)/g, '').trim());
                                 setShowLocations(false);
-                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                                // The shell's main area scrolls, not the window.
+                                document.querySelector('.shell-main')?.scrollTo({ top: 0, behavior: 'smooth' });
                               }}
                             >
                             <div style={{ fontWeight:700 }}>{loc.map}</div>
@@ -6002,8 +5938,8 @@ const marketResults = React.useMemo(() => {
           </>
         )}
       </div>
-      )}
-      
+      </AppShell>
+
       {showTypeChart && (
         <div
           onClick={() => {
@@ -6102,21 +6038,6 @@ const marketResults = React.useMemo(() => {
         </div>
       )}
 
-      {/* Fixed controls */}
-      <div
-        style={{
-          position:'fixed',
-          left:12,
-          bottom:10,
-          display:'flex',
-          gap:8,
-          zIndex:10000
-        }}
-      >
-        <SponsorButton />
-      </div>
-      <FeedbackButton />
-      <VersionBadge />
       {/* Catch notifications */}
       {catchNotifications.map((notification) => (
         <CatchNotification
