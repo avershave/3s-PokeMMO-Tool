@@ -72,6 +72,18 @@ test('live status polls the connection and opens on click', () => {
     vi.useRealTimers();
   }
 });
+test('live status connects the client on mount and while closed', () => {
+  vi.useFakeTimers();
+  try {
+    const c = { isOpen: () => false, on: () => () => {}, connect: vi.fn() };
+    render(<LiveStatus client={c} onOpen={() => {}} />);
+    expect(c.connect).toHaveBeenCalledTimes(1);
+    act(() => { vi.advanceTimersByTime(1000); });
+    expect(c.connect).toHaveBeenCalledTimes(2);
+  } finally {
+    vi.useRealTimers();
+  }
+});
 test('settings group holds the moved buttons', () => {
   render(<AppShell mode="pokemon" onNavigate={() => {}} onAction={() => {}} ocrSupported={false}><p /></AppShell>);
   for (const name of ['Options', 'Patch notes', 'Resources', 'Sponsor', 'Feedback'])
