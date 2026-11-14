@@ -127,9 +127,16 @@ function titleCase(s = "") {
     .replace(/(^|[\s(-])([a-z])/g, (_, p1, p2) => p1 + p2.toUpperCase());
 }
 
-export default function ShinyDexButton(){
+export default function ShinyDexButton({ renderTrigger = true }){
   const { shinyCaught, addShinyEntry, updateShinyEntry, removeShinyEntry } = useContext(ShinyCaughtContext);
   const [open, setOpen] = useState(false);
+
+  // Allow opening from the sidebar or other triggers
+  useEffect(() => {
+    const handler = (e) => { if (e.detail?.dex === 'shiny') setOpen(true); };
+    window.addEventListener('open-dex', handler);
+    return () => window.removeEventListener('open-dex', handler);
+  }, []);
   const [query, setQuery] = useState('');
   const [regionFilter, setRegionFilter] = useState('All');
   const [hideUncaught, setHideUncaught] = useState(true); // Changed to hideUncaught, default true
@@ -370,7 +377,7 @@ export default function ShinyDexButton(){
 
   return (
     <>
-      <button style={btnStyle} onClick={()=>setOpen(true)} title="Shiny Dex">Shiny Dex</button>
+      {renderTrigger && <button style={btnStyle} onClick={()=>setOpen(true)} title="Shiny Dex">Shiny Dex</button>}
       {open && (
         <div style={overlayStyle} onClick={()=>setOpen(false)}>
           <div style={modalStyle} onClick={e=>e.stopPropagation()}>
