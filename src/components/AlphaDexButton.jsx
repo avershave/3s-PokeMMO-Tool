@@ -114,9 +114,16 @@ function toEventMap(eventObj){
   return map;
 }
 
-export default function AlphaDexButton(){
+export default function AlphaDexButton({ renderTrigger = true }){
   const { alphaCaught, toggleAlphaCaught } = useContext(AlphaCaughtContext);
   const [open, setOpen] = useState(false);
+
+  // Allow opening from the sidebar or other triggers
+  useEffect(() => {
+    const handler = (e) => { if (e.detail?.dex === 'alpha') setOpen(true); };
+    window.addEventListener('open-dex', handler);
+    return () => window.removeEventListener('open-dex', handler);
+  }, []);
   const [query, setQuery] = useState('');
   const [hideCaught, setHideCaught] = useState(false);
 
@@ -234,7 +241,7 @@ export default function AlphaDexButton(){
 
   return (
     <>
-      <button style={btnStyle} onClick={()=>setOpen(true)} title="Alpha Dex">Alpha Dex</button>
+      {renderTrigger && <button style={btnStyle} onClick={()=>setOpen(true)} title="Alpha Dex">Alpha Dex</button>}
       {open && (
         <div style={overlayStyle} onClick={()=>setOpen(false)}>
           <div style={modalStyle} onClick={e=>e.stopPropagation()}>
