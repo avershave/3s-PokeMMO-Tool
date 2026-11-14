@@ -72,14 +72,14 @@ test('live status polls the connection and opens on click', () => {
     vi.useRealTimers();
   }
 });
-test('live status connects the client on mount and while closed', () => {
+test('live status connects the client once on mount and leaves retries to it', () => {
   vi.useFakeTimers();
   try {
     const c = { isOpen: () => false, on: () => () => {}, connect: vi.fn() };
     render(<LiveStatus client={c} onOpen={() => {}} />);
     expect(c.connect).toHaveBeenCalledTimes(1);
-    act(() => { vi.advanceTimersByTime(1000); });
-    expect(c.connect).toHaveBeenCalledTimes(2);
+    act(() => { vi.advanceTimersByTime(3000); });
+    expect(c.connect).toHaveBeenCalledTimes(1);
   } finally {
     vi.useRealTimers();
   }
@@ -107,4 +107,47 @@ test('footer components keep their default triggers', () => {
   expect(screen.getByRole('button', { name: 'Patch Notes' }).style.borderRadius).toBe('10px');
   expect(screen.getByRole('button', { name: 'Feedback' }).style.position).toBe('fixed');
   expect(screen.getByRole('button', { name: 'Sponsor' }).style.borderRadius).toBe('10px');
+});
+
+describe('narrow layout follows width and UI scale', () => {
+  const realWidth = window.innerWidth;
+  afterEach(() => {
+    window.innerWidth = realWidth;
+    document.body.style.zoom = '';
+  });
+  const shellEl = () => document.querySelector('.shell');
+  const renderShell = () => render(<AppShell mode="pokemon" onNavigate={() => {}} onAction={() => {}} ocrSupported={false}><p /></AppShell>);
+
+  test('wide window at normal scale is not narrow', () => {
+    window.innerWidth = 1440;
+    renderShell();
+    expect(shellEl().classList.contains('shell--narrow')).toBe(false);
+  });
+  test('narrow below 900px and re-checks on resize', () => {
+    window.innerWidth = 760;
+    renderShell();
+    expect(shellEl().classList.contains('shell--narrow')).toBe(true);
+    window.innerWidth = 1440;
+    act(() => { window.dispatchEvent(new Event('resize')); });
+    expect(shellEl().classList.contains('shell--narrow')).toBe(false);
+  });
+  test('a larger UI scale makes a wide window narrow', () => {
+    window.innerWidth = 1000;
+    renderShell();
+    expect(shellEl().classList.contains('shell--narrow')).toBe(false);
+    document.body.style.zoom = '1.5';
+    act(() => { window.dispatchEvent(new Event('ui-scale-changed')); });
+    expect(shellEl().classList.contains('shell--narrow')).toBe(true);
+  });
+});
+
+test('sidebar windows reset the sidebar font size to 16px', () => {
+  render(<AppShell mode="pokemon" onNavigate={() => {}} onAction={() => {}} ocrSupported={false}><p /></AppShell>);
+  fireEvent.click(screen.getByRole('button', { name: 'Options' }));
+  expect(screen.getByRole('dialog', { name: 'Options' }).parentElement.style.fontSize).toBe('16px');
+  fireEvent.click(screen.getByRole('button', { name: 'Close options' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Sponsor' }));
+  expect(screen.getByText(/showing support/).parentElement.style.fontSize).toBe('16px');
+  fireEvent.click(screen.getByRole('button', { name: 'Feedback' }));
+  expect(screen.getByText(/Find a bug/).style.fontSize).toBe('16px');
 });

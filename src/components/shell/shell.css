@@ -36,7 +36,7 @@
 }
 
 .shell-group__label {
-  padding: 12px 18px 4px;
+  padding: 10px 18px 3px;
   font-size: 12px;
   color: var(--c-muted);
 }
@@ -44,7 +44,7 @@
 .shell-row {
   display: block;
   width: 100%;
-  padding: 6px 18px;
+  padding: 5px 18px;
   border: 0;
   border-left: 3px solid transparent;
   background: none;
@@ -80,7 +80,7 @@
   flex-direction: column;
   gap: 2px;
   width: calc(100% - 24px);
-  margin: 14px 12px 4px;
+  margin: 10px 12px 2px;
   padding: 8px 10px;
   border: 0;
   border-radius: 6px;
@@ -116,39 +116,39 @@
 .shell-menu-btn,
 .shell-backdrop { display: none; }
 
-@media (max-width: 899.98px) {
-  .shell-sidebar {
-    display: none;
-    position: fixed;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    z-index: 9500;
-    box-shadow: var(--shadow-2);
-  }
-  .shell--menu-open .shell-sidebar { display: flex; }
-  .shell--menu-open .shell-backdrop {
-    display: block;
-    position: fixed;
-    inset: 0;
-    z-index: 9400;
-    background: rgba(0, 0, 0, 0.5);
-  }
-  .shell-menu-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    position: sticky;
-    top: 8px;
-    z-index: 10;
-    margin: 8px 0 0 8px;
-    padding: 4px 10px;
-    border: 1px solid var(--c-line);
-    border-radius: 6px;
-    background: var(--c-sidebar);
-    color: var(--c-text);
-    font-size: 18px;
-    line-height: 1.2;
-    cursor: pointer;
-  }
+/* AppShell sets .shell--narrow below 900 layout px (window width / UI scale);
+   a media query would ignore the UI scale zoom. */
+.shell--narrow .shell-sidebar {
+  display: none;
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 9500;
+  box-shadow: var(--shadow-2);
+}
+.shell--narrow.shell--menu-open .shell-sidebar { display: flex; }
+.shell--narrow.shell--menu-open .shell-backdrop {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 9400;
+  background: rgba(0, 0, 0, 0.5);
+}
+.shell--narrow .shell-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: sticky;
+  top: 8px;
+  z-index: 10;
+  margin: 8px 0 0 8px;
+  padding: 4px 10px;
+  border: 1px solid var(--c-line);
+  border-radius: 6px;
+  background: var(--c-sidebar);
+  color: var(--c-text);
+  font-size: 18px;
+  line-height: 1.2;
+  cursor: pointer;
 }
