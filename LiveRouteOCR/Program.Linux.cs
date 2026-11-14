@@ -309,11 +309,11 @@ partial class LiveRouteOCR
     static bool IsPokeMMOWindow(IntPtr display, IntPtr h)
     {
         if (!TryGetWindowAttributes(display, h, out _)) return false;
-        var title = RemoveDiacritics(GetWindowTitle(display, h)).Trim();
+        var title = NormalizeTitle(GetWindowTitle(display, h)).Trim();
         if (!string.IsNullOrEmpty(title) && title.IndexOf("pokemmo", StringComparison.OrdinalIgnoreCase) >= 0)
             return true;
         var cls = GetWindowClass(display, h);
-        if (!string.IsNullOrEmpty(cls) && cls.StartsWith("GLFW", StringComparison.OrdinalIgnoreCase))
+        if (IsGameWindowClass(cls))
             return true;
         return false;
     }
