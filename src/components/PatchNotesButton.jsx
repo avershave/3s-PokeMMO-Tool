@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { marked } from 'marked';
 import changelog from '../../CHANGELOG.md?raw';
 
@@ -6,7 +7,7 @@ export function openPatchNotes() {
   window.dispatchEvent(new Event('patchnotes:open'));
 }
 
-export default function PatchNotesButton() {
+export default function PatchNotesButton({ variant }) {
   const [open, setOpen] = useState(false);
   const html = useMemo(() => marked.parse(changelog), []);
   useEffect(() => {
@@ -66,10 +67,18 @@ export default function PatchNotesButton() {
 
   return (
     <>
-      <button style={btnStyle} onClick={openPatchNotes} title="Patch Notes">
-        Patch Notes
-      </button>
-      {open && (
+      {variant === 'sidebar' ? (
+        <button type="button" className="shell-row" onClick={openPatchNotes}>
+          Patch notes
+        </button>
+      ) : (
+        <button style={btnStyle} onClick={openPatchNotes} title="Patch Notes">
+          Patch Notes
+        </button>
+      )}
+      {/* Portal to body: patch notes open on their own after an update, and in
+          the narrow layout the sidebar holding this button is hidden. */}
+      {open && createPortal(
         <div style={overlayStyle} onClick={() => setOpen(false)}>
           <div style={modalStyle} onClick={e => e.stopPropagation()}>
             <div dangerouslySetInnerHTML={{ __html: html }} />
@@ -77,7 +86,8 @@ export default function PatchNotesButton() {
               Close
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

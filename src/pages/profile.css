@@ -1,0 +1,659 @@
+/* src/pages/profile.css - Pokémon profile, style C (type-coloured header, quiet body) */
+
+.pp {
+  container: pp / inline-size;
+  color: var(--c-text);
+  font-family: var(--f-body);
+}
+
+/* Zero-specificity reset so any class below wins. */
+:where(.pp button) {
+  font: inherit;
+  color: inherit;
+}
+
+.pp button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- Header ---------- */
+
+.pp-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-areas: "sprite id facts actions";
+  align-items: center;
+  gap: 16px 24px;
+  padding: 16px 20px;
+  border-radius: 10px;
+  color: #fff;
+}
+
+.pp-header button:focus-visible {
+  outline-color: rgba(255, 255, 255, 0.85);
+}
+
+.pp-sprite {
+  grid-area: sprite;
+  position: relative;
+  width: 96px;
+  height: 96px;
+}
+
+.pp-sprite img {
+  image-rendering: pixelated;
+}
+
+/* The no-sprite placeholder (event Pokémon) is a black outline; show it light on the header. */
+.pp-sprite img[src^="data:image/svg"] {
+  filter: invert(1);
+  opacity: 0.75;
+}
+
+.pp-shiny {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.28);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.pp-shiny svg {
+  fill: rgba(255, 255, 255, 0.75);
+}
+
+.pp-shiny.is-on svg {
+  fill: #F7D02C;
+}
+
+.pp-id {
+  grid-area: id;
+  min-width: 0;
+}
+
+.pp-name {
+  margin: 0;
+  color: #fff;
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 44px;
+  line-height: 0.95;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.pp-no {
+  font-family: var(--f-num);
+  font-weight: 500;
+  font-size: 16px;
+  opacity: 0.75;
+  margin-top: 2px;
+}
+
+.pp-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.pp-type {
+  display: inline-block;
+  padding: 2px 10px;
+  border: 0;
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.22);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+button.pp-type {
+  cursor: pointer;
+}
+
+button.pp-type:hover {
+  background: rgba(0, 0, 0, 0.34);
+}
+
+.pp-forms {
+  margin-top: 8px;
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+.pp-facts {
+  grid-area: facts;
+  display: grid;
+  grid-template-columns: repeat(4, auto);
+  gap: 6px 20px;
+  margin: 0;
+  font-family: var(--f-num);
+  font-weight: 500;
+  font-size: 15px;
+}
+
+.pp-facts dt {
+  /* Full white, set apart by weight: headers are darkened only until white
+     reaches 3:1, so any opacity drops below it on Electric, Ice and Ground. */
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pp-facts dd {
+  margin: 0;
+}
+
+.pp-actions {
+  grid-area: actions;
+  align-self: start;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pp-btn,
+.pp-icon {
+  border: 0;
+  background: rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+}
+
+.pp-btn:hover,
+.pp-icon:hover {
+  background: rgba(0, 0, 0, 0.34);
+}
+
+.pp-btn {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 16px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.pp-icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+.pp-icon img {
+  width: 20px;
+  height: 20px;
+}
+
+.pp-close {
+  font-size: 22px;
+  line-height: 1;
+}
+
+@container pp (max-width: 1000px) {
+  .pp-header {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "sprite id actions"
+      "facts facts facts";
+  }
+  .pp-facts {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@container pp (max-width: 560px) {
+  .pp-header {
+    grid-template-areas:
+      "sprite actions actions"
+      "id id id"
+      "facts facts facts";
+  }
+  .pp-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ---------- Body ---------- */
+
+.pp-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 32px;
+  margin-top: 20px;
+  padding: 0 4px;
+}
+
+/* A container query, not a media query, so it follows Options -> UI scale. */
+@container pp (max-width: 720px) {
+  .pp-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.pp-col {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  min-width: 0;
+}
+
+.pp-h,
+.pp .evo-title {
+  margin: 0 0 8px;
+  color: var(--c-text);
+  font-family: var(--f-display);
+  font-weight: 500;
+  font-size: 17px;
+}
+
+.pp-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--c-line);
+  font-size: 14px;
+}
+
+.pp-row-main {
+  font-weight: 600;
+}
+
+.pp-row-aside {
+  color: var(--c-muted);
+  font-size: 12px;
+}
+
+.pp-row-label {
+  color: var(--c-muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.pp-empty {
+  margin: 0;
+  color: var(--c-muted);
+  font-size: 14px;
+}
+
+/* Base stats: StatsRow, thinned out */
+.pp .profile-stats {
+  gap: 10px;
+}
+
+.pp .profile-stats-lines {
+  gap: 6px;
+}
+
+.pp .profile-stat-line {
+  grid-template-columns: 56px minmax(0, 1fr) 36px;
+  gap: 10px;
+}
+
+.pp .profile-stat-label {
+  font-weight: 400;
+  font-size: 13px;
+}
+
+.pp .profile-stat-bar {
+  height: 8px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--c-line);
+}
+
+.pp .profile-stat-bar-fill {
+  background: var(--accent);
+}
+
+.pp .profile-stat-value {
+  font-family: var(--f-num);
+  font-weight: 600;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pp .profile-stat-total {
+  padding: 6px 0 0;
+  border: 0;
+  border-top: 1px solid var(--c-line);
+  border-radius: 0;
+  background: none;
+}
+
+.pp .profile-stat-total-value {
+  font-size: 15px;
+}
+
+.pp .profile-nature-row {
+  justify-content: flex-start;
+}
+
+.pp .profile-nature-row .input {
+  width: auto;
+}
+
+.pp .profile-stats-toggle {
+  align-self: flex-start;
+  padding: 0;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.pp .profile-stats-extra-grid {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pp .profile-stat-input,
+.pp .profile-stat-total-card {
+  padding: 0;
+  border: 0;
+  background: none;
+  gap: 4px;
+}
+
+.pp .profile-stat-input-label {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.pp .profile-stat-input-field {
+  padding: 5px 4px;
+  border-radius: 6px;
+  font-family: var(--f-num);
+}
+
+@container pp (max-width: 560px) {
+  .pp .profile-stats-extra-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Type matchups */
+.pp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.pp-chip-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.pp-chip-note {
+  color: var(--c-muted);
+  font-family: var(--f-num);
+  font-size: 12px;
+}
+
+/* Evolution */
+.pp .evo-subtitle {
+  margin: 16px 0 8px;
+  color: var(--c-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Held items */
+.pp-held {
+  justify-content: flex-start;
+}
+
+.pp-held img {
+  width: 24px;
+  height: 24px;
+  image-rendering: pixelated;
+}
+
+/* Catch */
+.pp-catch {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 2px 0 8px;
+  border-bottom: 1px solid var(--c-line);
+}
+
+.pp-catch-pct {
+  font-family: var(--f-num);
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.pp-mods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 10px;
+}
+
+.pp-mod {
+  padding: 3px 10px;
+  border: 1px solid var(--c-line);
+  border-radius: 999px;
+  background: transparent;
+  font-family: var(--f-num);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pp-mod:hover {
+  border-color: var(--c-muted);
+}
+
+.pp-mod.is-on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.pp-mod.danger {
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #f87171;
+}
+
+.pp-mod.danger.is-on {
+  border-color: #f87171;
+  background: #f87171;
+  color: #1C1F25;
+}
+
+/* Ball select (BallSelect) */
+.profile-ball-select {
+  position: relative;
+}
+
+.profile-ball-select-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--c-line);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.profile-ball-select-button:hover {
+  border-color: var(--c-muted);
+}
+
+.profile-ball-select-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-radius: 8px;
+  box-shadow: var(--shadow-2);
+  padding: 4px 0;
+  z-index: 20;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.profile-ball-select-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 14px;
+  background: transparent;
+  border: none;
+  color: var(--c-text);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.profile-ball-select-option:hover {
+  background: var(--menu-hover-bg);
+}
+
+.profile-ball-select-option.is-selected {
+  background: rgba(201, 199, 143, 0.16);
+}
+
+.profile-ball-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  flex-shrink: 0;
+}
+
+/* ---------- Below: collapsible sections ---------- */
+
+.pp-below {
+  margin-top: 32px;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--c-line);
+}
+
+.pp-fold {
+  border-top: 1px solid var(--c-line);
+  padding: 12px 0;
+}
+
+.pp-fold-head,
+.pp-sets > div > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--f-display);
+  font-weight: 500;
+  font-size: 17px;
+  color: var(--c-text);
+}
+
+/* RecommendedMovesets draws its own heading with an inline bold weight. */
+.pp-sets > div > div:first-child {
+  font-weight: 500 !important;
+}
+
+.pp-fold-body {
+  padding-top: 12px;
+}
+
+.pp-region + .pp-region {
+  margin-top: 16px;
+}
+
+.pp-region-name {
+  margin: 0 0 2px;
+  color: var(--c-muted);
+  font-family: var(--f-display);
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.pp-loc {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  width: 100%;
+  border-width: 0 0 1px;
+  border-style: solid;
+  border-color: var(--c-line);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pp-loc:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.pp-loc-name {
+  font-weight: 600;
+}
+
+.pp-loc-level {
+  color: var(--c-muted);
+  font-family: var(--f-num);
+  font-size: 13px;
+}
+
+.pp-loc-pills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+@container pp (max-width: 560px) {
+  .pp-loc {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .pp-loc-pills {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+/* Moves */
+.pp .moves-table + .moves-table {
+  margin-top: 18px;
+}
+
+.pp .moves-table-title {
+  margin-bottom: 4px;
+  font-family: var(--f-display);
+  font-weight: 500;
+  font-size: 15px;
+}
+
+.pp .moves-table th {
+  color: var(--c-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
